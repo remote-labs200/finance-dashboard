@@ -8,29 +8,22 @@ export function generateId(): string {
   return Crypto.randomUUID();
 }
 
-// Password hashing - using simple SHA256 for now (use scrypt/bcrypt in production)
-export async function hashPassword(password: string): Promise<string> {
-  const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
-  return digest;
-}
-
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const inputHash = await hashPassword(password);
-  return inputHash === hash;
-}
-
+/**
+ * Create a local user reference record AFTER Supabase Auth has succeeded.
+ * This links the Supabase-authenticated user to local SQLite data.
+ */
 export async function createUser(
   db: SQLite.SQLiteDatabase,
   email: string,
-  passwordHash: string
+  supabaseUid?: string
 ): Promise<LocalUser> {
-  const id = generateId();
+  const id = supabaseUid ?? generateId();
   const now = new Date().toISOString();
 
   const user: LocalUser = {
     id,
     email,
-    passwordHash,
+    passwordHash: '', // Not used — Supabase Auth handles passwords
     createdAt: now,
     updatedAt: now,
   };
@@ -39,7 +32,7 @@ export async function createUser(
     'INSERT INTO users (id, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
     id,
     email,
-    passwordHash,
+    '',
     now,
     now
   );
@@ -47,6 +40,9 @@ export async function createUser(
   return user;
 }
 
+/**
+ * Find a local user reference by email (synced from Supabase Auth).
+ */
 export async function findUserByEmail(
   db: SQLite.SQLiteDatabase,
   email: string
@@ -60,6 +56,9 @@ export async function findUserByEmail(
   return result;
 }
 
+/**
+ * Find a local user reference by ID (matches Supabase Auth UID).
+ */
 export async function findUserById(
   db: SQLite.SQLiteDatabase,
   id: string
@@ -73,6 +72,9 @@ export async function findUserById(
   return result;
 }
 
+/**
+ * Update the email on the local user reference (syncs from Supabase Auth).
+ */
 export async function updateUserEmail(
   db: SQLite.SQLiteDatabase,
   userId: string,
@@ -82,20 +84,6 @@ export async function updateUserEmail(
   await db.runAsync(
     'UPDATE users SET email = ?, updated_at = ? WHERE id = ?',
     newEmail,
-    now,
-    userId
-  );
-}
-
-export async function updateUserPassword(
-  db: SQLite.SQLiteDatabase,
-  userId: string,
-  newPasswordHash: string
-): Promise<void> {
-  const now = new Date().toISOString();
-  await db.runAsync(
-    'UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?',
-    newPasswordHash,
     now,
     userId
   );

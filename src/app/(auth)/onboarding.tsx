@@ -13,10 +13,8 @@ import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useSQLiteContext } from '@/db/provider';
 import { useThemeColors } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/use-auth-store';
-import { createUser } from '@/db/user-repo';
 import * as SecureStore from 'expo-secure-store';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 
@@ -57,7 +55,6 @@ const ENTITY_TYPES = [
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD'];
 
 export default function OnboardingScreen() {
-  const db = useSQLiteContext();
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const colors = useThemeColors();
@@ -97,7 +94,7 @@ export default function OnboardingScreen() {
       extraCurrencies,
     }));
 
-    router.replace('/(tabs)');
+    router.replace('/(tabs)' as any);
   }, [user, businessName, entityType, stateCode, filingStatus, taxYear, baseCurrency, extraCurrencies, router]);
 
   const canProceed = () => {

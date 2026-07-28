@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { Transaction } from './schema';
 import { generateId } from './user-repo';
+import { cloudUpsert, cloudDelete } from './cloud-writer';
 
 export interface TransactionRow {
   id: string;
@@ -55,6 +56,20 @@ export async function createTransaction(
     updatedAt: now,
   };
 
+  // Write to Supabase first (source of truth)
+  await cloudUpsert(db, 'transactions', id, {
+    user_id: data.userId,
+    account_id: data.accountId,
+    category_id: data.categoryId,
+    amount_cents: data.amountCents,
+    currency_code: data.currencyCode,
+    note: data.note ?? null,
+    date: data.date,
+    created_at: now,
+    updated_at: now,
+  });
+
+  // Cache to local SQLite
   await db.runAsync(
     `INSERT INTO transactions (id, user_id, account_id, category_id, amount_cents, currency_code, note, date, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -142,6 +157,20 @@ export async function updateTransaction(
   data: Partial<Omit<Transaction, 'id' | 'createdAt' | 'updatedAt' | 'accountName' | 'categoryName'>>
 ): Promise<void> {
   const now = new Date().toISOString();
+
+  // Build payload for Supabase
+  const cloudData: Record<string, unknown> = { updated_at: now };
+  if (data.accountId !== undefined) cloudData.account_id = data.accountId;
+  if (data.categoryId !== undefined) cloudData.category_id = data.categoryId;
+  if (data.amountCents !== undefined) cloudData.amount_cents = data.amountCents;
+  if (data.currencyCode !== undefined) cloudData.currency_code = data.currencyCode;
+  if (data.note !== undefined) cloudData.note = data.note ?? null;
+  if (data.date !== undefined) cloudData.date = data.date;
+
+  // Write to Supabase first (source of truth)
+  await cloudUpsert(db, 'transactions', id, cloudData);
+
+  // Cache to local SQLite
   const fields: string[] = [];
   const values: any[] = [];
 
@@ -181,6 +210,10 @@ export async function deleteTransaction(
   db: SQLite.SQLiteDatabase,
   id: string
 ): Promise<void> {
+  // Delete from Supabase first (source of truth)
+  await cloudDelete(db, 'transactions', id);
+
+  // Remove from local SQLite cache
   await db.runAsync('DELETE FROM transactions WHERE id = ?', id);
 }
 

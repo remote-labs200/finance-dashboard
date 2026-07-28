@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { Account } from './schema';
 import { generateId } from './user-repo';
+import { cloudUpsert, cloudDelete } from './cloud-writer';
 
 export async function createAccount(
   db: SQLite.SQLiteDatabase,
@@ -16,6 +17,20 @@ export async function createAccount(
     updatedAt: now,
   };
 
+  // Write to Supabase first (source of truth)
+  await cloudUpsert(db, 'accounts', id, {
+    user_id: data.userId,
+    name: data.name,
+    type: data.type,
+    balance_cents: data.balanceCents,
+    currency_code: data.currencyCode,
+    color: data.color ?? null,
+    is_hidden: data.isHidden ? 1 : 0,
+    created_at: now,
+    updated_at: now,
+  });
+
+  // Cache to local SQLite
   await db.runAsync(
     `INSERT INTO accounts (id, user_id, name, type, balance_cents, currency_code, color, is_hidden, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -107,6 +122,20 @@ export async function updateAccount(
   data: Partial<Omit<Account, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   const now = new Date().toISOString();
+
+  // Build payload for Supabase
+  const cloudData: Record<string, unknown> = { updated_at: now };
+  if (data.name !== undefined) cloudData.name = data.name;
+  if (data.type !== undefined) cloudData.type = data.type;
+  if (data.balanceCents !== undefined) cloudData.balance_cents = data.balanceCents;
+  if (data.currencyCode !== undefined) cloudData.currency_code = data.currencyCode;
+  if (data.color !== undefined) cloudData.color = data.color ?? null;
+  if (data.isHidden !== undefined) cloudData.is_hidden = data.isHidden ? 1 : 0;
+
+  // Write to Supabase first (source of truth)
+  await cloudUpsert(db, 'accounts', id, cloudData);
+
+  // Cache to local SQLite
   const fields: string[] = [];
   const values: any[] = [];
 
@@ -146,5 +175,9 @@ export async function deleteAccount(
   db: SQLite.SQLiteDatabase,
   id: string
 ): Promise<void> {
+  // Delete from Supabase first (source of truth)
+  await cloudDelete(db, 'accounts', id);
+
+  // Remove from local SQLite cache
   await db.runAsync('DELETE FROM accounts WHERE id = ?', id);
 }

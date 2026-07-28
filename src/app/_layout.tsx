@@ -71,7 +71,7 @@ function RootLayoutInner() {
     if (!user || onboardingDone === null) return;
 
     if (onboardingDone) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)' as any);
     } else {
       router.replace('/(auth)/onboarding');
     }

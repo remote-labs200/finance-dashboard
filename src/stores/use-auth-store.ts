@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 
-import { findUserByEmail, createUser, hashPassword, verifyPassword, findUserById, updateUserEmail, updateUserPassword } from '@/db/user-repo';
+import { findUserByEmail, createUser, findUserById, updateUserEmail } from '@/db/user-repo';
 import { supabase } from '@/lib/supabase';
+import { performFullSync } from '@/lib/sync-service';
 
 export interface LocalUser {
   id: string;
@@ -19,7 +20,6 @@ interface AuthState {
   signOut: () => Promise<void>;
   init: (db: SQLite.SQLiteDatabase) => Promise<void>;
   updateEmail: (db: SQLite.SQLiteDatabase, newEmail: string) => Promise<void>;
-  updatePassword: (db: SQLite.SQLiteDatabase, currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 // Check if Supabase is configured
@@ -33,22 +33,26 @@ export const useAuthStore = create<AuthState>((set) => ({
   init: async (db) => {
     try {
       if (isSupabaseConfigured && supabase) {
-        // Try Supabase session first
+        // Restore Supabase session (auto-refresh happens via the client)
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // Sync Supabase user to local DB
+          // Sync the Supabase-authenticated user to a local reference
           const email = session.user.email ?? '';
           let localUser = await findUserByEmail(db, email);
           if (!localUser) {
-            // Create local user from Supabase
-            localUser = await createUser(db, email, 'supabase-auth');
+            localUser = await createUser(db, email, session.user.id);
           }
-          set({ user: { id: localUser.id, email: localUser.email }, isLoading: false });
+          set({ user: { id: localUser.id, email: localUser.email } });
+
+          // Warm the local SQLite cache from Supabase (fire and forget)
+          performFullSync(db).catch(() => {});
+
+          set({ isLoading: false });
           return;
         }
       }
 
-      // Fallback to local auth
+    // No Supabase session — check SecureStore for last user (dev convenience)
       const storedUserId = await SecureStore.getItemAsync('userId');
       if (storedUserId) {
         const user = await findUserById(db, storedUserId);
@@ -61,72 +65,64 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: null, isLoading: false });
       }
     } catch {
-      // Failed to restore session — treat as logged out
       set({ user: null, isLoading: false });
     }
   },
 
   signIn: async (db, email, password) => {
-    if (isSupabaseConfigured && supabase) {
-      // Try Supabase auth
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.message);
-      if (data.user) {
-        // Sync to local DB
-        let localUser = await findUserByEmail(db, email);
-        if (!localUser) {
-          localUser = await createUser(db, email, 'supabase-auth');
-        }
-        set({ user: { id: localUser.id, email: localUser.email } });
-        return;
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error(
+        'Supabase is not configured. Please set EXPO_PUBLIC_SUPABASE_URL and ' +
+        'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your .env file.'
+      );
+    }
+
+    // Authenticate via Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+
+    if (data.user) {
+      // Create or update local user reference
+      let localUser = await findUserByEmail(db, email);
+      if (!localUser) {
+        localUser = await createUser(db, email, data.user.id);
       }
-    }
+      await SecureStore.setItemAsync('userId', localUser.id);
+      set({ user: { id: localUser.id, email: localUser.email } });
 
-    // Fallback to local auth
-    const user = await findUserByEmail(db, email);
-    if (!user) {
-      throw new Error('User not found');
+      // Warm the local SQLite cache from Supabase
+      performFullSync(db).catch(() => {});
     }
-
-    const isValid = await verifyPassword(password, user.passwordHash);
-    if (!isValid) {
-      throw new Error('Invalid password');
-    }
-
-    await SecureStore.setItemAsync('userId', user.id);
-    set({ user: { id: user.id, email: user.email } });
   },
 
   signUp: async (db, email, password) => {
-    if (isSupabaseConfigured && supabase) {
-      // Try Supabase auth
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw new Error(error.message);
-      if (data.user) {
-        // Sync to local DB
-        let localUser = await findUserByEmail(db, email);
-        if (!localUser) {
-          localUser = await createUser(db, email, 'supabase-auth');
-        }
-        set({ user: { id: localUser.id, email: localUser.email } });
-        return;
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error(
+        'Supabase is not configured. Please set EXPO_PUBLIC_SUPABASE_URL and ' +
+        'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your .env file.'
+      );
+    }
+
+    // Sign up via Supabase Auth
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw new Error(error.message);
+
+    if (data.user) {
+      // Create local user reference
+      let localUser = await findUserByEmail(db, email);
+      if (!localUser) {
+        localUser = await createUser(db, email, data.user.id);
       }
-    }
+      await SecureStore.setItemAsync('userId', localUser.id);
+      set({ user: { id: localUser.id, email: localUser.email } });
 
-    // Fallback to local auth
-    const existing = await findUserByEmail(db, email);
-    if (existing) {
-      throw new Error('User already exists');
+      // Warm the local SQLite cache from Supabase
+      performFullSync(db).catch(() => {});
     }
-
-    const passwordHash = await hashPassword(password);
-    const user = await createUser(db, email, passwordHash);
-    await SecureStore.setItemAsync('userId', user.id);
-    set({ user: { id: user.id, email: user.email } });
   },
 
   signOut: async () => {
-    if (isSupabaseConfigured && supabase) {
+    if (supabase) {
       await supabase.auth.signOut();
     }
     await SecureStore.deleteItemAsync('userId');
@@ -136,22 +132,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   updateEmail: async (db, newEmail) => {
     const currentUser = useAuthStore.getState().user;
     if (!currentUser) throw new Error('Not signed in');
+
+    // Update email in Supabase
+    if (supabase) {
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw new Error(error.message);
+    }
+
+    // Update local reference
     await updateUserEmail(db, currentUser.id, newEmail);
     set({ user: { ...currentUser, email: newEmail } });
-  },
-
-  updatePassword: async (db, currentPassword, newPassword) => {
-    const currentUser = useAuthStore.getState().user;
-    if (!currentUser) throw new Error('Not signed in');
-
-    // Verify current password
-    const user = await findUserById(db, currentUser.id);
-    if (!user) throw new Error('User not found');
-    const isValid = await verifyPassword(currentPassword, user.passwordHash);
-    if (!isValid) throw new Error('Current password is incorrect');
-
-    // Update to new password
-    const newHash = await hashPassword(newPassword);
-    await updateUserPassword(db, currentUser.id, newHash);
   },
 }));

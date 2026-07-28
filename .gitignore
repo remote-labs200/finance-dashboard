@@ -27,16 +27,26 @@ yarn-debug.*
 yarn-error.*
 
 # macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
+# local env files — NEVER commit these
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
 
+# debug logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
 example
+
+# IDE (JetBrains, swap files)
+.idea/
+*.swp
+*.swo
 
 # generated native folders
 /ios

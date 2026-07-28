@@ -1,5 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, View, SafeAreaView } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -8,7 +7,7 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 export default function ScanWebScreen() {
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.scroll}>
           <ThemedText type="title">Scan Receipt</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -32,7 +31,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scroll: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+    paddingTop: Spacing.six,
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     width: '100%',

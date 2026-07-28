@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useSQLiteContext } from '@/db/provider';
+import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { useThemeStore, type ThemePreference } from '@/stores/use-theme-store';
 import { useTheme } from '@/hooks/use-theme';
@@ -35,7 +36,6 @@ export default function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
   const updateEmail = useAuthStore((state) => state.updateEmail);
-  const updatePassword = useAuthStore((state) => state.updatePassword);
   const router = useRouter();
   const theme = useTheme();
   const themePreference = useThemeStore((s) => s.preference);
@@ -128,7 +128,9 @@ export default function SettingsScreen() {
     }
     setPasswordLoading(true);
     try {
-      await updatePassword(db, currentPassword, newPassword);
+      if (!supabase) throw new Error('Supabase is not configured');
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw new Error(error.message);
       setActiveModal(null);
       setCurrentPassword('');
       setNewPassword('');
@@ -139,7 +141,7 @@ export default function SettingsScreen() {
     } finally {
       setPasswordLoading(false);
     }
-  }, [db, currentPassword, newPassword, confirmNewPassword, updatePassword]);
+  }, [currentPassword, newPassword, confirmNewPassword]);
 
   const closeModal = useCallback(() => {
     setActiveModal(null);

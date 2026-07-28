@@ -1,14 +1,14 @@
 /**
  * Sync Service
  *
- * Handles offline-first synchronization with Supabase.
- * Implements a queue-based sync with conflict resolution (last-write-wins).
+ * Handles cloud-first synchronization with Supabase as source of truth.
+ * SQLite is the local cache for instant reads and offline support.
  *
  * Flow:
- * 1. Local changes are written to SQLite immediately
- * 2. Changes are queued in a sync_log table
+ * 1. Writes go to Supabase first (source of truth), then cache to SQLite
+ * 2. If offline, writes go to SQLite and are queued in sync_log
  * 3. On connectivity, queue is flushed to Supabase
- * 4. Remote changes are pulled and merged
+ * 4. Full pull refreshes the entire SQLite cache from Supabase
  */
 
 import * as SQLite from 'expo-sqlite';
@@ -235,8 +235,15 @@ export async function pullFromSupabase(
 
 // --- Full Sync ---
 
-const SYNC_TABLES = ['accounts', 'categories', 'transactions', 'tax_settings'];
+const SYNC_TABLES = ['accounts', 'categories', 'transactions', 'tax_settings', 'user_preferences'];
 
+/**
+ * Perform a full sync:
+ * 1. Flush any offline-queued changes to Supabase (push)
+ * 2. Refresh the full SQLite cache from Supabase (pull)
+ *
+ * Call this on sign-in and periodically while the app is foregrounded.
+ */
 export async function performFullSync(
   db: SQLite.SQLiteDatabase
 ): Promise<SyncResult> {

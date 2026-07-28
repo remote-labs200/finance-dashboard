@@ -2,12 +2,12 @@
  * AI Service
  *
  * Provides AI-powered features for the finance dashboard:
- * 1. Auto-categorization of transactions
+ * 1. Auto-categorization of transactions (via Supabase Edge Function)
  * 2. Receipt OCR (extract merchant, amount, date from image)
  * 3. Insights Q&A (natural language questions about finances)
  *
  * All AI calls go through a Supabase Edge Function to keep API keys secure.
- * Falls back to rule-based categorization when AI is unavailable.
+ * A local rule-based fallback is available when offline.
  */
 
 import { supabase } from './supabase';
@@ -39,7 +39,7 @@ export interface InsightResponse {
 // --- Configuration ---
 
 const AI_EDGE_FUNCTION_URL = process.env.EXPO_PUBLIC_AI_EDGE_FUNCTION_URL;
-const AI_ENABLED = !!AI_EDGE_FUNCTION_URL;
+const AI_ENABLED = !!AI_EDGE_FUNCTION_URL && !!supabase;
 
 // --- Rule-Based Fallback Categorization ---
 
@@ -75,7 +75,6 @@ export function ruleBasedCategorize(
 
   for (const rule of CATEGORY_RULES) {
     if (rule.pattern.test(normalizedDesc)) {
-      // Check if the suggested category exists in user's categories
       const match = existingCategories.find(
         (cat) => cat.toLowerCase() === rule.category.toLowerCase()
       );
@@ -94,52 +93,51 @@ export function ruleBasedCategorize(
   };
 }
 
-// --- AI-Powered Functions ---
+// --- AI-Powered Functions (Supabase Edge Functions Primary) ---
 
 /**
- * Auto-categorize a transaction using AI (or rule-based fallback)
+ * Auto-categorize a transaction using the Supabase AI Edge Function.
+ * Falls back to rule-based when offline or AI is unavailable.
  */
 export async function aiCategorize(
   description: string,
   amount: number,
   existingCategories: string[]
 ): Promise<CategorizationResult> {
-  // Always try rule-based first for speed
-  const ruleResult = ruleBasedCategorize(description, existingCategories);
-  if (ruleResult.confidence >= 0.8) {
-    return ruleResult;
+  // Try Supabase Edge Function first
+  if (AI_ENABLED && supabase) {
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-categorize', {
+        body: { description, amount, existingCategories },
+      });
+
+      if (!error && data?.category) {
+        return {
+          suggestedCategory: data.category,
+          confidence: data.confidence ?? 0.9,
+          reason: data.reason ?? 'AI categorization via Supabase Edge Function',
+        };
+      }
+    } catch {
+      // Edge Function unavailable — fall through to rule-based
+    }
   }
 
-  // If AI is available and confidence is low, try AI
-  if (!AI_ENABLED || !supabase) return ruleResult;
-
-  try {
-    const { data, error } = await supabase.functions.invoke('ai-categorize', {
-      body: { description, amount, existingCategories },
-    });
-
-    if (error || !data) return ruleResult;
-
-    return {
-      suggestedCategory: data.category ?? ruleResult.suggestedCategory,
-      confidence: data.confidence ?? ruleResult.confidence,
-      reason: data.reason ?? 'AI categorization',
-    };
-  } catch {
-    return ruleResult;
-  }
+  // Fallback: rule-based categorization (works offline)
+  return ruleBasedCategorize(description, existingCategories);
 }
 
 /**
- * Extract receipt data from an image URL using AI
+ * Extract receipt data from an image URL using the Supabase AI Edge Function.
+ * Returns null when AI is unavailable.
  */
 export async function aiExtractReceipt(
   imageUrl: string
 ): Promise<ReceiptExtraction | null> {
-  if (!AI_ENABLED || !supabase) return null;
+  if (!AI_ENABLED) return null;
 
   try {
-    const { data, error } = await supabase.functions.invoke('ai-receipt-ocr', {
+    const { data, error } = await supabase!.functions.invoke('ai-receipt-ocr', {
       body: { imageUrl },
     });
 
@@ -160,7 +158,8 @@ export async function aiExtractReceipt(
 }
 
 /**
- * Answer a natural language question about the user's finances
+ * Answer a natural language question about the user's finances using the
+ * Supabase AI Edge Function.
  */
 export async function aiInsightQuery(
   question: string,
@@ -178,7 +177,7 @@ export async function aiInsightQuery(
 ): Promise<InsightResponse> {
   if (!AI_ENABLED || !supabase) {
     return {
-      answer: 'AI insights are not available. Please configure the AI service in Settings.',
+      answer: 'AI insights require Supabase to be configured with an AI Edge Function. Configure it in Settings.',
       confidence: 0,
     };
   }
@@ -209,7 +208,7 @@ export async function aiInsightQuery(
 }
 
 /**
- * Check if AI features are available
+ * Check if AI features are available (requires Supabase + Edge Function URL).
  */
 export function isAIEnabled(): boolean {
   return AI_ENABLED;

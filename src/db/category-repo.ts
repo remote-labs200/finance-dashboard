@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { Category } from './schema';
 import { generateId } from './user-repo';
+import { cloudUpsert, cloudDelete } from './cloud-writer';
 
 export async function createCategory(
   db: SQLite.SQLiteDatabase,
@@ -16,6 +17,20 @@ export async function createCategory(
     updatedAt: now,
   };
 
+  // Write to Supabase first (source of truth)
+  await cloudUpsert(db, 'categories', id, {
+    user_id: data.userId,
+    name: data.name,
+    color: data.color ?? null,
+    icon: data.icon ?? null,
+    is_income: data.isIncome ? 1 : 0,
+    is_hidden: data.isHidden ? 1 : 0,
+    sort_order: data.sortOrder,
+    created_at: now,
+    updated_at: now,
+  });
+
+  // Cache to local SQLite
   await db.runAsync(
     `INSERT INTO categories (id, user_id, name, color, icon, is_income, is_hidden, sort_order, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -115,6 +130,20 @@ export async function updateCategory(
   data: Partial<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   const now = new Date().toISOString();
+
+  // Build payload for Supabase
+  const cloudData: Record<string, unknown> = { updated_at: now };
+  if (data.name !== undefined) cloudData.name = data.name;
+  if (data.color !== undefined) cloudData.color = data.color ?? null;
+  if (data.icon !== undefined) cloudData.icon = data.icon ?? null;
+  if (data.isIncome !== undefined) cloudData.is_income = data.isIncome ? 1 : 0;
+  if (data.isHidden !== undefined) cloudData.is_hidden = data.isHidden ? 1 : 0;
+  if (data.sortOrder !== undefined) cloudData.sort_order = data.sortOrder;
+
+  // Write to Supabase first (source of truth)
+  await cloudUpsert(db, 'categories', id, cloudData);
+
+  // Cache to local SQLite
   const fields: string[] = [];
   const values: any[] = [];
 
@@ -154,5 +183,9 @@ export async function deleteCategory(
   db: SQLite.SQLiteDatabase,
   id: string
 ): Promise<void> {
+  // Delete from Supabase first (source of truth)
+  await cloudDelete(db, 'categories', id);
+
+  // Remove from local SQLite cache
   await db.runAsync('DELETE FROM categories WHERE id = ?', id);
 }

@@ -138,4 +138,9 @@ export const MIGRATIONS = [
     PRIMARY KEY (user_id, key)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_preferences_user_id ON user_preferences(user_id)`,
+  // Cache metadata for cloud-first sync
+  `CREATE TABLE IF NOT EXISTS cache_metadata (
+    table_name TEXT PRIMARY KEY NOT NULL,
+    last_synced_at TEXT NOT NULL
+  )`,
 ];
