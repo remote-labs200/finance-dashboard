@@ -9,6 +9,10 @@ import { useAuthStore } from '@/stores/use-auth-store';
 import { useThemeStore } from '@/stores/use-theme-store';
 import { useResolvedThemeName } from '@/hooks/use-theme';
 import { Colors } from '@/constants/theme';
+import {
+  setupNotificationChannels,
+  requestNotificationPermission,
+} from '@/lib/notification-service';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,6 +41,10 @@ function RootLayoutInner() {
     Promise.all([
       init(db),
       loadThemePreference(),
+      setupNotificationChannels(),
+      requestNotificationPermission().then((granted) => {
+        if (granted) console.log('Notification permission granted');
+      }),
     ]).finally(() => {
       if (mounted) SplashScreen.hideAsync();
     });

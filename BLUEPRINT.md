@@ -215,7 +215,64 @@ sync_log         (entity, entity_id, last_synced_at, version, op[upsert|delete])
 - Sync status indicator; manual "sync now"; offline queue.
 - Privacy: local-first, encrypt SQLite at rest, receipts encrypted in Storage.
 
----
+### 6.10 Push Notifications
+
+**Status: 🚧 Planned — not yet implemented**
+
+SmoothTax uses notifications for two categories:
+
+#### Local Notifications (built — works offline)
+
+| Type | Trigger | Content |
+|---|---|---|
+| Tax deadline 7-day warning | Scheduled when user sets up tax profile | "Your Q1 estimated tax payment is due in 7 days (Apr 15)." |
+| Tax deadline 1-day warning | 24 hours before due date | "Your Q1 estimated tax payment is due tomorrow!" |
+| Dry month alert | Triggered by income smoothing engine | "March is projected to be a dry month. Shortfall: $1,200." |
+
+Local notifications are scheduled via `expo-notifications` and work entirely on-device with no server dependency. The channels (Android) and categories (iOS) are set up at app launch.
+
+#### Push Notifications (to build — real-time via Supabase Realtime)
+
+**Purpose:** Send notifications from server-side events — payment received from a client, sync conflict detected, AI insight ready, or a new tax rule update pushed by the server.
+
+**Implementation plan:**
+
+```
+Supabase Event (INSERT/UPDATE on trigger tables)
+       │
+       ▼
+Database Webhook ──► Supabase Edge Function
+       │                      │
+       ▼                      ▼
+Realtime channel        Expo Push Notification
+(client listens)        (server sends to device)
+```
+
+| Path | Mechanism | Latency | Use Case |
+|---|---|---|---|
+| **Realtime** | Supabase Realtime websocket (client subscribes) | ~100ms | Live sync status, transaction confirmed from another device |
+| **Push** | Expo Push Notifications via Supabase Edge Function | ~1–5s | Tax deadline alert when app is closed, payment received from client |
+
+**Storage:**
+
+- Push tokens stored in `expo-secure-store` locally and synced to Supabase `user_preferences` table
+- On sign-in: fetch current Expo push token → upsert into `user_preferences` under `push_token` key
+- On sign-out or token refresh: update the stored token
+
+**Edge Function (`notify-push`):**
+
+- Receives a payload from a database webhook or is called internally
+- Looks up the user's push token from `user_preferences`
+- Sends via Expo Push API: `https://exp.host/--/api/v2/push/send`
+
+**Required work:**
+
+- [ ] Register Expo push token on app launch after auth
+- [ ] Sync push token to Supabase `user_preferences` (key: `push_token`)
+- [ ] Create Supabase Realtime channel subscription for notification events
+- [ ] Build `supabase/functions/notify-push/index.ts` Edge Function
+- [ ] Wire up response handlers (notification tap → deep link to relevant screen)
+- [ ] Add notification preferences UI in Settings (enable/disable per type)---
 
 ## 7. AI Integration Plan
 
@@ -259,12 +316,14 @@ sync_log         (entity, entity_id, last_synced_at, version, op[upsert|delete])
 - Supabase auth/sync/Storage; offline queue + conflict resolution.
 - AI receipt OCR + auto-categorization; AI insights Q&A.
 - Reports/export (Schedule C summary, CSV).
+- Push notification infrastructure: token registration, Realtime channel subscription,
+  `notify-push` Edge Function, notification deep-linking.
 
 **Phase 3 — Polish & Growth**
 
 - Multi-currency FX refresh, per-client ledgers, mileage.
 - AI forecasting; MCP/agent hook (stretch).
-- Subscription paywall, onboarding polish, notifications.
+- Subscription paywall, onboarding polish, notification preferences UI.
 
 ---
 

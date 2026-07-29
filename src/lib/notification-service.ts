@@ -1,10 +1,28 @@
 /**
  * Notification Service
  *
- * Handles scheduling and managing local notifications for:
- * - Tax deadline reminders (quarterly estimated taxes)
- * - Income smoothing alerts (dry month warnings)
- * - General app notifications
+ * Two notification systems:
+ * 1. **Local Notifications** (built) — scheduled on-device via `expo-notifications`.
+ *    Works offline. Used for tax deadline reminders and dry month alerts.
+ * 2. **Push Notifications** (planned) — real-time server-sent notifications via
+ *    Supabase Realtime + Expo Push API. Used for payment confirmations, sync
+ *    events, AI insights ready, and server-pushed tax rule updates.
+ *
+ * ## Local Notifications
+ *
+ * | Notification | Trigger | Scheduling |
+ * |---|---|---|
+ * | Tax deadline 7-day warning | Quarterly due dates | Scheduled on tax profile setup |
+ * | Tax deadline 1-day warning | 24h before due date | Scheduled on tax profile setup |
+ * | Dry month alert | Income smoothing engine | Immediate when threshold breached |
+ *
+ * ## Push Notifications (to build)
+ *
+ * See BLUEPRINT.md for full spec. Required work:
+ * - registerPushToken() — get Expo push token, sync to Supabase user_preferences
+ * - subscribeToRealtimeChannel() — listen for notification events from server
+ * - handleNotificationResponse() — deep-link on notification tap
+ * - notifyPush Edge Function — server-side push sender via Expo Push API
  */
 
 import * as Notifications from 'expo-notifications';
@@ -180,3 +198,88 @@ export async function getBadgeCount(): Promise<number> {
 export async function setBadgeCount(count: number): Promise<void> {
   await Notifications.setBadgeCountAsync(count);
 }
+
+// =============================================================================
+// Push Notifications (to build)
+// =============================================================================
+// Run `grep -n 'TODO-PUSH' src/lib/notification-service.ts` to find all stubs.
+// See BLUEPRINT.md → Push Notifications for full spec.
+// =============================================================================
+
+/**
+ * TODO-PUSH-1: Register Expo Push Token
+ *
+ * - Generate an ExpoPushToken via Notifications.getExpoPushTokenAsync({ projectId })
+ * - Persist it to Supabase user_preferences via preferences-repo
+ * - This lets downstream Edge Functions (like the payment processor) send
+ *   real-time push notifications to this specific device.
+ */
+export async function registerPushToken(): Promise<void> {
+  // 👷 Build: ExpoPushToken → preferences-repo.setPreference(db, userId, 'pushToken', token)
+  // 👷 Build: Handle token refresh on app cold boot (token may change)
+  throw new Error('TODO-PUSH-1: registerPushToken not yet implemented');
+}
+
+/**
+ * TODO-PUSH-2: Subscribe to Supabase Realtime Channel for Push Events
+ *
+ * This client-side subscription listens for INSERT events on a dedicated
+ * `push_notifications` table (or listens on a Supabase Realtime broadcast channel).
+ * When a new push event arrives, it triggers a local notification so the user
+ * sees it even if the app is in the foreground.
+ *
+ * Edge Functions like `notify-push` INSERT into this table after sending via
+ * Expo Push API.
+ */
+export function subscribeToRealtimePushEvents(): () => void {
+  // 👷 Build: supabase.channel('push-events').on(...).subscribe()
+  // 👷 Build: Map DB row fields → local notification content
+  // 👷 Build: Return unsubscribe function for cleanup
+  throw new Error('TODO-PUSH-2: subscribeToRealtimePushEvents not yet implemented');
+}
+
+/**
+ * TODO-PUSH-3: Handle Notification Tap with Deep Link
+ *
+ * When the user taps a push notification, route them to the relevant screen.
+ * - 'payment_received' → /accounts screen
+ * - 'sync_complete' → /cloud-sync screen
+ * - 'tax_deadline' → /tax-config screen
+ * - 'ai_insight_ready' → /insights screen
+ *
+ * Wire this into _layout.tsx's onNotificationResponse handler.
+ */
+export async function handleNotificationResponse(response: Notifications.NotificationResponse): Promise<void> {
+  // 👷 Build: Extract data.type from response.notification.request.content.data
+  // 👷 Build: Use Expo Router to navigate to the matching screen
+  // 👷 Build: Default fallback — deep-link to root
+  const _data = response.notification.request.content.data;
+  console.warn('TODO-PUSH-3: handleNotificationResponse', _data);
+}
+
+/**
+ * TODO-PUSH-4: Notify-push Edge Function
+ *
+ * Create supabase/functions/notify-push/index.ts in the Supabase project.
+ * This Edge Function:
+ * 1. Accepts { userId, title, body, data, badge? } via async POST
+ * 2. Looks up the user's ExpoPushToken from user_preferences table
+ * 3. Calls Expo Push API (https://exp.host/--/api/v2/push/send) with the token
+ * 4. Handles token invalidation (410 Gone → clear token)
+ *
+ * Deploy with: npx supabase functions deploy notify-push
+ */
+// ---------------------------------------------------------------------------
+// notifyPush Edge Function — file: supabase/functions/notify-push/index.ts
+// ---------------------------------------------------------------------------
+/*
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+serve(async (req) => {
+  // 👷 Build: Validate request, look up push token, call Expo Push API
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { 'Content-Type': 'application/json' },
+  })
+})
+*/
