@@ -13,7 +13,24 @@ export type UserPreferenceKey =
   // Profile fields
   | 'profile_first_name'
   | 'profile_last_name'
-  | 'profile_business_phone';
+  | 'profile_business_phone'
+  // Business information
+  | 'business_legal_name'
+  | 'business_structure'
+  | 'business_ein'
+  | 'business_address_line1'
+  | 'business_address_line2'
+  | 'business_city'
+  | 'business_state'
+  | 'business_zip'
+  // Tax profile
+  | 'tax_filing_status'
+  | 'tax_entity_type'
+  | 'tax_locale'
+  // Accounting year
+  | 'fy_start_month'
+  | 'fy_start_day'
+  | 'fy_type';
 
 const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   filing_status: 'single',
@@ -24,6 +41,20 @@ const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   profile_first_name: '',
   profile_last_name: '',
   profile_business_phone: '',
+  business_legal_name: '',
+  business_structure: 'sole_prop',
+  business_ein: '',
+  business_address_line1: '',
+  business_address_line2: '',
+  business_city: '',
+  business_state: '',
+  business_zip: '',
+  tax_filing_status: 'single',
+  tax_entity_type: 'sole_prop',
+  tax_locale: 'US',
+  fy_start_month: '1',
+  fy_start_day: '1',
+  fy_type: 'calendar',
 };
 
 export async function getPreference(
