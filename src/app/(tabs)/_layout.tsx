@@ -14,6 +14,10 @@ export default function TabsLayout() {
       <Stack.Screen name="tax-config" options={{ presentation: 'modal' }} />
       <Stack.Screen name="currency-settings" options={{ presentation: 'modal' }} />
       <Stack.Screen name="cloud-sync" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="personal-profile" />
+      <Stack.Screen name="business-info" />
+      <Stack.Screen name="tax-profile" />
+      <Stack.Screen name="accounting-year" />
     </Stack>
   );
 }
