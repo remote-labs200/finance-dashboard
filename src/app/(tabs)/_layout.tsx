@@ -23,6 +23,9 @@ export default function TabsLayout() {
       <Stack.Screen name="exchange-rates" />
       <Stack.Screen name="safe-monthly-pay" />
       <Stack.Screen name="tax-calibration" />
+      <Stack.Screen name="bank-connections" />
+      <Stack.Screen name="invoicing-integrations" />
+      <Stack.Screen name="export-ledger" />
     </Stack>
   );
 }
