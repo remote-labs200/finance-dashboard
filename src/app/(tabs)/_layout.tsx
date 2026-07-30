@@ -30,6 +30,14 @@ export default function TabsLayout() {
       <Stack.Screen name="ai-financial-insights" />
       <Stack.Screen name="mileage-tracker-settings" />
       <Stack.Screen name="cash-flow-forecasting" />
+      <Stack.Screen name="biometric-lock" />
+      <Stack.Screen name="two-factor-auth" />
+      <Stack.Screen name="data-encryption-key" />
+      <Stack.Screen name="security-logs" />
+      <Stack.Screen name="connected-devices" />
+      <Stack.Screen name="help-faqs" />
+      <Stack.Screen name="terms-privacy" />
+      <Stack.Screen name="app-version" />
     </Stack>
   );
 }
