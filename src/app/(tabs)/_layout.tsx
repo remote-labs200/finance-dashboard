@@ -26,6 +26,10 @@ export default function TabsLayout() {
       <Stack.Screen name="bank-connections" />
       <Stack.Screen name="invoicing-integrations" />
       <Stack.Screen name="export-ledger" />
+      <Stack.Screen name="receipt-ocr-settings" />
+      <Stack.Screen name="ai-financial-insights" />
+      <Stack.Screen name="mileage-tracker-settings" />
+      <Stack.Screen name="cash-flow-forecasting" />
     </Stack>
   );
 }
