@@ -10,7 +10,7 @@
  * 2. The function will automatically use GPT-4o-mini for smarter categorization.
  */
 
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 
 // ---------------------------------------------------------------------------
 // CORS headers — required for Supabase Edge Functions

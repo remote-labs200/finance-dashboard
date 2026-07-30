@@ -86,7 +86,7 @@ export default function ScanScreen() {
     if (!isAIEnabled()) {
       Alert.alert(
         'AI not configured',
-        'Receipt OCR requires the AI service to be configured. Please set up EXPO_PUBLIC_AI_EDGE_FUNCTION_URL in your .env file.'
+        'Receipt OCR requires Supabase to be configured with deployed Edge Functions. Please set up EXPO_PUBLIC_SUPABASE_URL in your .env file.'
       );
       return;
     }
@@ -260,7 +260,7 @@ export default function ScanScreen() {
               <View style={styles.infoContent}>
                 <ThemedText type="small" style={{ fontWeight: '600' }}>AI Service Not Configured</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Set EXPO_PUBLIC_AI_EDGE_FUNCTION_URL in your .env to enable receipt scanning.
+                  Configure EXPO_PUBLIC_SUPABASE_URL and deploy Edge Functions to enable receipt scanning.
                 </ThemedText>
               </View>
             </View>

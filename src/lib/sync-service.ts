@@ -9,6 +9,7 @@
  * 2. If offline, writes go to SQLite and are queued in sync_log
  * 3. On connectivity, queue is flushed to Supabase
  * 4. Full pull refreshes the entire SQLite cache from Supabase
+ * 5. refreshFromCloud nukes the local cache and re-pulls from cloud (used on sign-in)
  */
 
 import * as SQLite from 'expo-sqlite';
@@ -238,23 +239,69 @@ export async function pullFromSupabase(
 const SYNC_TABLES = ['accounts', 'categories', 'transactions', 'tax_settings', 'user_preferences'];
 
 /**
- * Perform a full sync:
- * 1. Flush any offline-queued changes to Supabase (push)
- * 2. Refresh the full SQLite cache from Supabase (pull)
+ * Perform a standard full sync:
+ * 1. Pull latest from Supabase first (source of truth refreshes the local cache)
+ * 2. Push any offline-queued changes to Supabase
  *
- * Call this on sign-in and periodically while the app is foregrounded.
+ * The pull-first order ensures cloud data is authoritative — local offline
+ * changes are still sent to cloud, but the initial pull guarantees the cache
+ * reflects the latest cloud state before any merge occurs.
+ *
+ * Call this periodically while the app is foregrounded.
  */
 export async function performFullSync(
   db: SQLite.SQLiteDatabase
 ): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, conflicts: 0, errors: [] };
 
-  // Step 1: Push local changes
+  // Step 1: Pull remote changes (cloud is authoritative)
+  for (const table of SYNC_TABLES) {
+    try {
+      const count = await pullFromSupabase(db, table);
+      result.pulled += count;
+    } catch (err) {
+      result.errors.push(`Pull ${table}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Step 2: Push local offline-queued changes
   const pushResult = await pushToSupabase(db);
   result.pushed = pushResult.pushed;
   result.errors.push(...pushResult.errors);
 
-  // Step 2: Pull remote changes
+  return result;
+}
+
+/**
+ * Nuclear refresh — clears the entire local cache and re-pulls everything
+ * from Supabase. Designed specifically for the sign-in flow when a user
+ * authenticates after local data has been cleared or is stale.
+ *
+ * Should NOT be used for routine background sync (use performFullSync instead).
+ */
+export async function refreshFromCloud(
+  db: SQLite.SQLiteDatabase
+): Promise<SyncResult> {
+  const result: SyncResult = { pushed: 0, pulled: 0, conflicts: 0, errors: [] };
+
+  if (!supabase) {
+    result.errors.push('Supabase not configured');
+    return result;
+  }
+
+  // Wipe the local cache so we start clean
+  for (const table of SYNC_TABLES) {
+    try {
+      await db.runAsync(`DELETE FROM ${table}`);
+    } catch (err) {
+      result.errors.push(`Clear ${table}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  try {
+    await db.runAsync('DELETE FROM cache_metadata');
+  } catch { /* ignore — table may not exist */ }
+
+  // Re-pull everything from Supabase
   for (const table of SYNC_TABLES) {
     try {
       const count = await pullFromSupabase(db, table);

@@ -38,8 +38,11 @@ export interface InsightResponse {
 
 // --- Configuration ---
 
-const AI_EDGE_FUNCTION_URL = process.env.EXPO_PUBLIC_AI_EDGE_FUNCTION_URL;
-const AI_ENABLED = !!AI_EDGE_FUNCTION_URL && !!supabase;
+// Edge Functions are served from the Supabase project's built-in functions endpoint.
+// No additional URL configuration is needed — the supabase client resolves it.
+// AI features are available when Supabase is configured (required for deployment)
+// and gracefully fall back to rule-based logic when edge functions are unreachable.
+const AI_ENABLED = !!supabase;
 
 // --- Rule-Based Fallback Categorization ---
 

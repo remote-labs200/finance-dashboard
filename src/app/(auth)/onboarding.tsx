@@ -83,7 +83,7 @@ export default function OnboardingScreen() {
     if (!user) return;
 
     // Save settings to SecureStore for the onboarding completion flag
-    await SecureStore.setItemAsync('onboarding_complete', 'true');
+    await SecureStore.setItemAsync('onboarding_completed', 'true');
     await SecureStore.setItemAsync('user_settings', JSON.stringify({
       businessName: businessName || 'My Freelance Business',
       entityType,

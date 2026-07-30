@@ -1,0 +1,42 @@
+# SmoothTax — Supabase Project Configuration
+
+[project]
+ref = "mqdeqeftskygafyrnguw"
+name = "smooth-tax"
+
+[api]
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+migration_dirs = ["supabase/migrations"]
+
+[auth]
+enabled = true
+enable_signup = true
+
+[auth.email]
+enable_confirmations = false
+enable_autoconfirm = true
+
+# Edge Functions — 3 AI functions
+[functions]
+include = ["ai-categorize", "ai-insights", "ai-receipt-ocr"]
+
+[functions.ai-categorize]
+verify_jwt = false
+
+[functions.ai-insights]
+verify_jwt = false
+
+[functions.ai-receipt-ocr]
+verify_jwt = false
+
+# Storage — for receipt images
+[storage]
+enabled = true
+
+[storage.buckets.receipts]
+public = false
+file_size_limit = "10MB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/heic", "image/webp"]

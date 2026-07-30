@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, useState } from 'react';
-import { StatusBar } from 'react-native';
+import { Animated, StatusBar, StyleSheet } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { DatabaseProvider, useSQLiteContext } from '@/db/provider';
@@ -18,10 +18,12 @@ import { OfflineIndicator } from '@/components/offline-indicator';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useBiometricAuth } from '@/hooks/use-biometric';
+import { SplashLogo } from '@/components/splash-logo';
 
 SplashScreen.preventAutoHideAsync();
 
 const ONBOARDING_KEY = 'onboarding_completed';
+const SPLASH_BG = '#208AEF';
 
 export default function RootLayout() {
   return (
@@ -40,29 +42,39 @@ function RootLayoutInner() {
   const prevUser = useRef(user);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
   const resolvedTheme = useResolvedThemeName();
 
   const { isAvailable: bioAvailable, isAuthenticated: bioAuthed, authenticate: bioAuth } = useBiometricAuth(biometricEnabled);
 
   const unlocked = !bioAvailable || !biometricEnabled || bioAuthed || !user;
 
+  // On cold boot: init DB, load preferences, then hide native splash.
+  // After that, fade out the custom splash overlay to reveal the app.
   useEffect(() => {
     let mounted = true;
     Promise.all([
       init(db),
       loadThemePreference(),
-      // Notification channels and permissions are lazy-loaded internally —
-      // they gracefully no-op if expo-notifications is unavailable (Expo Go
-      // SDK 53+, web, etc.). The static import at the top only brings in the
-      // wrapper functions; the actual expo-notifications module is loaded via
-      // dynamic import() inside each function call.
       setupNotificationChannels().catch(() => {}),
       requestNotificationPermission().catch(() => {}),
     ]).finally(() => {
-      if (mounted) SplashScreen.hideAsync();
+      if (!mounted) return;
+      // Keep custom splash visible for at least 1.2 s so the user sees the logo.
+      setTimeout(() => {
+        SplashScreen.hideAsync();
+        Animated.timing(splashOpacity, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }).start(() => {
+          if (mounted) setShowSplash(false);
+        });
+      }, 1200);
     });
     return () => { mounted = false; };
-  }, [init, db, loadThemePreference]);
+  }, [init, db, loadThemePreference, splashOpacity]);
 
   // Check onboarding status when user signs in
   useEffect(() => {
@@ -112,11 +124,12 @@ function RootLayoutInner() {
     }
   }, [user, onboardingDone, router]);
 
+  // ── Biometric lock screen ─────────────────────────────────────────────────
   if (!unlocked) {
     return (
       <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-        <ThemedText type="title">SmoothTax</ThemedText>
-        <ThemedText type="callout" themeColor="textSecondary" style={{ marginTop: 12 }}>
+        <SplashLogo wordmarkColor={Colors[resolvedTheme].text} taglineColor={Colors[resolvedTheme].textSecondary} />
+        <ThemedText type="callout" themeColor="textSecondary" style={{ marginTop: 48 }}>
           Authenticate to unlock the app
         </ThemedText>
         <StatusBar
@@ -127,22 +140,46 @@ function RootLayoutInner() {
     );
   }
 
+  // ── App shell ─────────────────────────────────────────────────────────────
   return (
-    <ErrorBoundary>
-      <ThemeProvider value={resolvedTheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <StatusBar
-          barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
-          backgroundColor={Colors[resolvedTheme].background}
-        />
-        {user && <OfflineIndicator />}
-        <Stack screenOptions={{ headerShown: false }}>
-          {user ? (
-            <Stack.Screen name="(tabs)" />
-          ) : (
-            <Stack.Screen name="(auth)" />
-          )}
-        </Stack>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <>
+      <ErrorBoundary>
+        <ThemeProvider value={resolvedTheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <StatusBar
+            barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
+            backgroundColor={Colors[resolvedTheme].background}
+          />
+          {user && <OfflineIndicator />}
+          <Stack screenOptions={{ headerShown: false }}>
+            {user ? (
+              <Stack.Screen name="(tabs)" />
+            ) : (
+              <Stack.Screen name="(auth)" />
+            )}
+          </Stack>
+        </ThemeProvider>
+      </ErrorBoundary>
+
+      {/* Custom splash overlay — fades out after init completes */}
+      {showSplash && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            styles.splashOverlay,
+            { opacity: splashOpacity },
+          ]}>
+          <SplashLogo />
+        </Animated.View>
+      )}
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  splashOverlay: {
+    backgroundColor: SPLASH_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
