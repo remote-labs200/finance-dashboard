@@ -160,6 +160,24 @@ export default function AccountScreen() {
       ],
     },
     {
+      icon: { ios: 'paintbrush', android: 'palette', web: 'palette' },
+      title: 'Customization',
+      items: [
+        {
+          icon: { ios: 'sun.max', android: 'brightness_6', web: 'brightness_6' },
+          label: 'App Theme',
+          description: 'Light, dark, or system theme with haptic feedback settings.',
+          onPress: () => navigateTo('/(tabs)/app-theme'),
+        },
+        {
+          icon: { ios: 'rectangle.3.group', android: 'view_quilt', web: 'view_quilt' },
+          label: 'Navbar Position',
+          description: 'Move tab bar to the top or keep it at the bottom.',
+          onPress: () => navigateTo('/(tabs)/navbar-position'),
+        },
+      ],
+    },
+    {
       icon: { ios: 'dollarsign.circle', android: 'attach_money', web: 'attach_money' },
       title: 'Financial Core & Currencies',
       items: [

@@ -39,6 +39,8 @@ export default function TabsLayout() {
       <Stack.Screen name="terms-privacy" />
       <Stack.Screen name="app-version" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="app-theme" />
+      <Stack.Screen name="navbar-position" />
     </Stack>
   );
 }
