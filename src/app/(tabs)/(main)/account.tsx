@@ -175,6 +175,12 @@ export default function AccountScreen() {
           description: 'Move tab bar to the top or keep it at the bottom.',
           onPress: () => navigateTo('/(tabs)/navbar-position'),
         },
+        {
+          icon: { ios: 'textformat.size', android: 'format_size', web: 'format_size' },
+          label: 'Font Size & Style',
+          description: 'Adjust text size scaling and preview changes live.',
+          onPress: () => navigateTo('/(tabs)/font-size-style'),
+        },
       ],
     },
     {

@@ -2,37 +2,14 @@ import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
 
 import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useFontScale } from '@/stores/use-ui-prefs';
 
 export type ThemedTextProps = TextProps & {
   type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'callout' | 'headline' | 'link' | 'linkPrimary' | 'code';
   themeColor?: ThemeColor;
 };
 
-export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
-  const theme = useTheme();
-
-  return (
-    <Text
-      style={[
-        { color: theme[themeColor ?? 'text'] },
-        type === 'default' && styles.default,
-        type === 'title' && styles.title,
-        type === 'small' && styles.small,
-        type === 'smallBold' && styles.smallBold,
-        type === 'subtitle' && styles.subtitle,
-        type === 'callout' && styles.callout,
-        type === 'headline' && styles.headline,
-        type === 'link' && [styles.link, { color: theme.primary }],
-        type === 'linkPrimary' && [styles.linkPrimary, { color: theme.primary }],
-        type === 'code' && styles.code,
-        style,
-      ]}
-      {...rest}
-    />
-  );
-}
-
-const styles = StyleSheet.create({
+const BASE_STYLES = StyleSheet.create({
   small: {
     fontSize: 14,
     lineHeight: 20,
@@ -49,13 +26,13 @@ const styles = StyleSheet.create({
     fontWeight: 500,
   },
   title: {
-    fontSize: 48,
+    fontSize: 28,
     fontWeight: 600,
-    lineHeight: 52,
+    lineHeight: 34,
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: 600,
   },
   callout: {
@@ -82,3 +59,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
+  const theme = useTheme();
+  const fontScale = useFontScale();
+
+  const baseStyle =
+    type === 'default' ? BASE_STYLES.default :
+    type === 'title' ? BASE_STYLES.title :
+    type === 'small' ? BASE_STYLES.small :
+    type === 'smallBold' ? BASE_STYLES.smallBold :
+    type === 'subtitle' ? BASE_STYLES.subtitle :
+    type === 'callout' ? BASE_STYLES.callout :
+    type === 'headline' ? BASE_STYLES.headline :
+    type === 'link' ? BASE_STYLES.link :
+    type === 'linkPrimary' ? BASE_STYLES.linkPrimary :
+    type === 'code' ? BASE_STYLES.code :
+    undefined;
+
+  const scaledStyle = baseStyle && fontScale !== 1
+    ? {
+        fontSize: baseStyle.fontSize ? Math.round(baseStyle.fontSize * fontScale) : undefined,
+        lineHeight: 'lineHeight' in baseStyle && baseStyle.lineHeight
+          ? Math.round(baseStyle.lineHeight * fontScale)
+          : undefined,
+      }
+    : {};
+
+  const linkStyle = type === 'link' || type === 'linkPrimary'
+    ? { color: theme.primary }
+    : {};
+
+  return (
+    <Text
+      style={[
+        { color: theme[themeColor ?? 'text'] },
+        baseStyle,
+        scaledStyle,
+        linkStyle,
+        style,
+      ]}
+      {...rest}
+    />
+  );
+}
