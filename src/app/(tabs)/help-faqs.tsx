@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.four, paddingTop: Spacing.three, paddingBottom: Spacing.two, gap: Spacing.two },
   headerTitle: { flex: 1 },
   backBtn: { padding: Spacing.one },
-  scroll: { paddingHorizontal: Spacing.four, maxWidth: MaxContentWidth, alignSelf: 'center', width: '100%', gap: Spacing.three },
+  scroll: { paddingHorizontal: Spacing.four, maxWidth: MaxContentWidth, alignSelf: 'center', width: '100%', paddingBottom: Spacing.three },
   introCard: { flexDirection: 'row', padding: Spacing.three, borderRadius: Spacing.three, borderWidth: 1, gap: Spacing.two, alignItems: 'center' },
   faqCard: { padding: Spacing.three, borderRadius: Spacing.three, borderWidth: 1 },
   faqTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },

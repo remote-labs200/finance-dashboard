@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.four, paddingTop: Spacing.three, paddingBottom: Spacing.two, gap: Spacing.two },
   headerTitle: { flex: 1 },
   backBtn: { padding: Spacing.one },
-  scroll: { paddingHorizontal: Spacing.four, maxWidth: MaxContentWidth, alignSelf: 'center', width: '100%', gap: Spacing.three },
+  scroll: { paddingHorizontal: Spacing.four, maxWidth: MaxContentWidth, alignSelf: 'center', width: '100%', paddingBottom: Spacing.three },
   heroCard: { alignItems: 'center', padding: Spacing.five, borderRadius: Spacing.three, borderWidth: 1 },
   appIcon: { width: 80, height: 80, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   detailsCard: { paddingHorizontal: Spacing.three, borderRadius: Spacing.three, borderWidth: 1 },

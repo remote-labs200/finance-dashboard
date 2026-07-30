@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.four, paddingTop: Spacing.three, paddingBottom: Spacing.two, gap: Spacing.two },
   headerTitle: { flex: 1 },
   backBtn: { padding: Spacing.one },
-  scroll: { paddingHorizontal: Spacing.four, maxWidth: MaxContentWidth, alignSelf: 'center', width: '100%', gap: Spacing.three },
+  scroll: { paddingHorizontal: Spacing.four, maxWidth: MaxContentWidth, alignSelf: 'center', width: '100%', paddingBottom: Spacing.three },
   section: { gap: Spacing.one },
   sectionTitle: { fontWeight: '600' },
   statusCard: { alignItems: 'center', padding: Spacing.five, borderRadius: Spacing.three, borderWidth: 1, gap: Spacing.half },
