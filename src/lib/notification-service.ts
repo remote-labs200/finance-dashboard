@@ -23,58 +23,97 @@
  * - subscribeToRealtimeChannel() — listen for notification events from server
  * - handleNotificationResponse() — deep-link on notification tap
  * - notifyPush Edge Function — server-side push sender via Expo Push API
+ *
+ * ## Expo Go Limitation
+ *
+ * From SDK 53, Expo Go removed Android push notification support. The import
+ * of `expo-notifications` itself throws on Android in Expo Go. To work around
+ * this, all imports are lazy (dynamic `import()` inside each function).
+ * Local notifications still work on iOS in Expo Go and on both platforms
+ * when using a development build.
  */
 
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-
 import { getQuarterlyDueDates, daysUntil } from './format';
 
-// --- Configuration ---
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsModule = typeof import('expo-notifications');
 
 const TAX_CHANNEL_ID = 'tax-reminders';
 const SMOOTHING_CHANNEL_ID = 'income-alerts';
+
+/** Lazy-load expo-notifications, returning null if unavailable. */
+async function loadNotifications(): Promise<NotificationsModule | null> {
+  try {
+    return await import('expo-notifications');
+  } catch {
+    // expo-notifications not available (Expo Go SDK 53+ on Android, or web)
+    return null;
+  }
+}
+
+// --- Configuration (lazy) ---
+
+let _handlerConfigured = false;
+
+async function ensureHandler(): Promise<NotificationsModule | null> {
+  const Notifications = await loadNotifications();
+  if (!Notifications || _handlerConfigured) return Notifications;
+  _handlerConfigured = true;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+  return Notifications;
+}
 
 // --- Channel Setup ---
 
 export async function setupNotificationChannels(): Promise<void> {
   if (Platform.OS !== 'android') return;
+  const Notifications = await ensureHandler();
+  if (!Notifications) return;
 
-  await Notifications.setNotificationChannelAsync(TAX_CHANNEL_ID, {
-    name: 'Tax Deadline Reminders',
-    importance: Notifications.AndroidImportance.HIGH,
-    vibrationPattern: [0, 250, 250, 250],
-    description: 'Reminders for quarterly estimated tax payments',
-  });
+  try {
+    await Notifications.setNotificationChannelAsync(TAX_CHANNEL_ID, {
+      name: 'Tax Deadline Reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      description: 'Reminders for quarterly estimated tax payments',
+    });
 
-  await Notifications.setNotificationChannelAsync(SMOOTHING_CHANNEL_ID, {
-    name: 'Income Alerts',
-    importance: Notifications.AndroidImportance.DEFAULT,
-    description: 'Alerts about income smoothing and dry months',
-  });
+    await Notifications.setNotificationChannelAsync(SMOOTHING_CHANNEL_ID, {
+      name: 'Income Alerts',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      description: 'Alerts about income smoothing and dry months',
+    });
+  } catch {
+    // Silently fail if notifications are unavailable
+  }
 }
 
 // --- Permission ---
 
 export async function requestNotificationPermission(): Promise<boolean> {
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  const Notifications = await ensureHandler();
+  if (!Notifications) return false;
 
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    return finalStatus === 'granted';
+  } catch {
+    return false;
   }
-
-  return finalStatus === 'granted';
 }
 
 // --- Tax Deadline Notifications ---
@@ -84,59 +123,64 @@ export async function requestNotificationPermission(): Promise<boolean> {
  * Schedules notifications 7 days and 1 day before each deadline.
  */
 export async function scheduleTaxDeadlineReminders(year: number): Promise<void> {
-  // Cancel existing tax reminders first
-  await cancelNotificationsByChannel(TAX_CHANNEL_ID);
+  const Notifications = await ensureHandler();
+  if (!Notifications) return;
 
-  const deadlines = getQuarterlyDueDates(year);
-  const now = Date.now();
+  try {
+    await cancelNotificationsByChannel(Notifications, TAX_CHANNEL_ID);
 
-  for (const deadline of deadlines) {
-    const days = daysUntil(deadline.dueDate);
+    const deadlines = getQuarterlyDueDates(year);
+    const now = Date.now();
 
-    // Only schedule for future deadlines
-    if (days <= 0) continue;
+    for (const deadline of deadlines) {
+      const days = daysUntil(deadline.dueDate);
 
-    // 7-day reminder
-    if (days > 7) {
-      const triggerDate = new Date(deadline.dueDate + 'T09:00:00');
-      triggerDate.setDate(triggerDate.getDate() - 7);
+      if (days <= 0) continue;
 
-      if (triggerDate.getTime() > now) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Tax Deadline Approaching',
-            body: `Your Q${deadline.quarter} estimated tax payment is due in 7 days (${deadline.dueDate}).`,
-            data: { type: 'tax_deadline', quarter: deadline.quarter },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: triggerDate,
-            channelId: TAX_CHANNEL_ID,
-          },
-        });
+      // 7-day reminder
+      if (days > 7) {
+        const triggerDate = new Date(deadline.dueDate + 'T09:00:00');
+        triggerDate.setDate(triggerDate.getDate() - 7);
+
+        if (triggerDate.getTime() > now) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'Tax Deadline Approaching',
+              body: `Your Q${deadline.quarter} estimated tax payment is due in 7 days (${deadline.dueDate}).`,
+              data: { type: 'tax_deadline', quarter: deadline.quarter },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: triggerDate,
+              channelId: TAX_CHANNEL_ID,
+            },
+          });
+        }
+      }
+
+      // 1-day reminder
+      if (days > 1) {
+        const triggerDate = new Date(deadline.dueDate + 'T09:00:00');
+        triggerDate.setDate(triggerDate.getDate() - 1);
+
+        if (triggerDate.getTime() > now) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'Tax Deadline Tomorrow!',
+              body: `Your Q${deadline.quarter} estimated tax payment is due tomorrow. Don't forget to submit.`,
+              data: { type: 'tax_deadline', quarter: deadline.quarter },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: triggerDate,
+              channelId: TAX_CHANNEL_ID,
+            },
+          });
+        }
       }
     }
-
-    // 1-day reminder
-    if (days > 1) {
-      const triggerDate = new Date(deadline.dueDate + 'T09:00:00');
-      triggerDate.setDate(triggerDate.getDate() - 1);
-
-      if (triggerDate.getTime() > now) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Tax Deadline Tomorrow!',
-            body: `Your Q${deadline.quarter} estimated tax payment is due tomorrow. Don't forget to submit.`,
-            data: { type: 'tax_deadline', quarter: deadline.quarter },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: triggerDate,
-            channelId: TAX_CHANNEL_ID,
-          },
-        });
-      }
-    }
+  } catch {
+    // Silently fail if notifications are unavailable
   }
 }
 
@@ -146,23 +190,27 @@ export async function scheduleTaxDeadlineReminders(year: number): Promise<void> 
  * Send a dry month warning notification.
  */
 export async function sendDryMonthWarning(monthName: string, shortfallCents: number): Promise<void> {
-  const amount = (shortfallCents / 100).toFixed(2);
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Dry Month Warning',
-      body: `${monthName} is projected to be a dry month. You may be short $${amount} from your safe pay amount.`,
-      data: { type: 'dry_month', month: monthName },
-    },
-    trigger: null, // Immediate
-  });
+  const Notifications = await ensureHandler();
+  if (!Notifications) return;
+
+  try {
+    const amount = (shortfallCents / 100).toFixed(2);
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Dry Month Warning',
+        body: `${monthName} is projected to be a dry month. You may be short $${amount} from your safe pay amount.`,
+        data: { type: 'dry_month', month: monthName },
+      },
+      trigger: null, // Immediate
+    });
+  } catch {
+    // Silently fail
+  }
 }
 
 // --- Utilities ---
 
-/**
- * Cancel all notifications in a specific channel.
- */
-async function cancelNotificationsByChannel(channelId: string): Promise<void> {
+async function cancelNotificationsByChannel(Notifications: NotificationsModule, channelId: string): Promise<void> {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   for (const notification of scheduled) {
     if (notification.content.data?.channelId === channelId) {
@@ -175,28 +223,52 @@ async function cancelNotificationsByChannel(channelId: string): Promise<void> {
  * Cancel all scheduled notifications.
  */
 export async function cancelAllNotifications(): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  const Notifications = await ensureHandler();
+  if (!Notifications) return;
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+  } catch {
+    // Silently fail
+  }
 }
 
 /**
  * Get all pending scheduled notifications.
  */
 export async function getScheduledNotifications() {
-  return Notifications.getAllScheduledNotificationsAsync();
+  const Notifications = await ensureHandler();
+  if (!Notifications) return [];
+  try {
+    return Notifications.getAllScheduledNotificationsAsync();
+  } catch {
+    return [];
+  }
 }
 
 /**
  * Get badge count.
  */
 export async function getBadgeCount(): Promise<number> {
-  return Notifications.getBadgeCountAsync();
+  const Notifications = await ensureHandler();
+  if (!Notifications) return 0;
+  try {
+    return Notifications.getBadgeCountAsync();
+  } catch {
+    return 0;
+  }
 }
 
 /**
  * Set badge count.
  */
 export async function setBadgeCount(count: number): Promise<void> {
-  await Notifications.setBadgeCountAsync(count);
+  const Notifications = await ensureHandler();
+  if (!Notifications) return;
+  try {
+    await Notifications.setBadgeCountAsync(count);
+  } catch {
+    // Silently fail
+  }
 }
 
 // =============================================================================
@@ -215,8 +287,8 @@ export async function setBadgeCount(count: number): Promise<void> {
  *   real-time push notifications to this specific device.
  */
 export async function registerPushToken(): Promise<void> {
-  // 👷 Build: ExpoPushToken → preferences-repo.setPreference(db, userId, 'pushToken', token)
-  // 👷 Build: Handle token refresh on app cold boot (token may change)
+  const Notifications = await loadNotifications();
+  if (!Notifications) throw new Error('expo-notifications is not available in this environment');
   throw new Error('TODO-PUSH-1: registerPushToken not yet implemented');
 }
 
@@ -232,9 +304,6 @@ export async function registerPushToken(): Promise<void> {
  * Expo Push API.
  */
 export function subscribeToRealtimePushEvents(): () => void {
-  // 👷 Build: supabase.channel('push-events').on(...).subscribe()
-  // 👷 Build: Map DB row fields → local notification content
-  // 👷 Build: Return unsubscribe function for cleanup
   throw new Error('TODO-PUSH-2: subscribeToRealtimePushEvents not yet implemented');
 }
 
@@ -249,37 +318,6 @@ export function subscribeToRealtimePushEvents(): () => void {
  *
  * Wire this into _layout.tsx's onNotificationResponse handler.
  */
-export async function handleNotificationResponse(response: Notifications.NotificationResponse): Promise<void> {
-  // 👷 Build: Extract data.type from response.notification.request.content.data
-  // 👷 Build: Use Expo Router to navigate to the matching screen
-  // 👷 Build: Default fallback — deep-link to root
-  const _data = response.notification.request.content.data;
-  console.warn('TODO-PUSH-3: handleNotificationResponse', _data);
+export async function handleNotificationResponse(): Promise<void> {
+  throw new Error('TODO-PUSH-3: handleNotificationResponse not yet implemented');
 }
-
-/**
- * TODO-PUSH-4: Notify-push Edge Function
- *
- * Create supabase/functions/notify-push/index.ts in the Supabase project.
- * This Edge Function:
- * 1. Accepts { userId, title, body, data, badge? } via async POST
- * 2. Looks up the user's ExpoPushToken from user_preferences table
- * 3. Calls Expo Push API (https://exp.host/--/api/v2/push/send) with the token
- * 4. Handles token invalidation (410 Gone → clear token)
- *
- * Deploy with: npx supabase functions deploy notify-push
- */
-// ---------------------------------------------------------------------------
-// notifyPush Edge Function — file: supabase/functions/notify-push/index.ts
-// ---------------------------------------------------------------------------
-/*
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-serve(async (req) => {
-  // 👷 Build: Validate request, look up push token, call Expo Push API
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { 'Content-Type': 'application/json' },
-  })
-})
-*/

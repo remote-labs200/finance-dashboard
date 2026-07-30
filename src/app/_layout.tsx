@@ -51,10 +51,13 @@ function RootLayoutInner() {
     Promise.all([
       init(db),
       loadThemePreference(),
-      setupNotificationChannels(),
-      requestNotificationPermission().then((granted) => {
-        if (granted) console.log('Notification permission granted');
-      }),
+      // Notification channels and permissions are lazy-loaded internally —
+      // they gracefully no-op if expo-notifications is unavailable (Expo Go
+      // SDK 53+, web, etc.). The static import at the top only brings in the
+      // wrapper functions; the actual expo-notifications module is loaded via
+      // dynamic import() inside each function call.
+      setupNotificationChannels().catch(() => {}),
+      requestNotificationPermission().catch(() => {}),
     ]).finally(() => {
       if (mounted) SplashScreen.hideAsync();
     });
