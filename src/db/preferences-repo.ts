@@ -30,7 +30,19 @@ export type UserPreferenceKey =
   // Accounting year
   | 'fy_start_month'
   | 'fy_start_day'
-  | 'fy_type';
+  | 'fy_type'
+  // Financial Core & Currencies
+  | 'base_currency'
+  | 'secondary_currencies'
+  | 'fx_auto_update'
+  | 'fx_auto_update_interval'
+  | 'smoothing_target_pct'
+  | 'smoothing_buffer_months'
+  | 'smoothing_min_pay'
+  | 'calibration_state_rate'
+  | 'calibration_prior_year_tax'
+  | 'calibration_current_quarter'
+  | 'calibration_safe_harbor';
 
 const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   filing_status: 'single',
@@ -55,6 +67,17 @@ const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   fy_start_month: '1',
   fy_start_day: '1',
   fy_type: 'calendar',
+  base_currency: 'USD',
+  secondary_currencies: '',
+  fx_auto_update: 'true',
+  fx_auto_update_interval: '24',
+  smoothing_target_pct: '70',
+  smoothing_buffer_months: '3',
+  smoothing_min_pay: '0',
+  calibration_state_rate: '0',
+  calibration_prior_year_tax: '0',
+  calibration_current_quarter: '1',
+  calibration_safe_harbor: 'true',
 };
 
 export async function getPreference(

@@ -18,6 +18,11 @@ export default function TabsLayout() {
       <Stack.Screen name="business-info" />
       <Stack.Screen name="tax-profile" />
       <Stack.Screen name="accounting-year" />
+      <Stack.Screen name="base-currency" />
+      <Stack.Screen name="secondary-currencies" />
+      <Stack.Screen name="exchange-rates" />
+      <Stack.Screen name="safe-monthly-pay" />
+      <Stack.Screen name="tax-calibration" />
     </Stack>
   );
 }
