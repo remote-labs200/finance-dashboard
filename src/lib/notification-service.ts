@@ -8,6 +8,20 @@
  *    Supabase Realtime + Expo Push API. Used for payment confirmations, sync
  *    events, AI insights ready, and server-pushed tax rule updates.
  *
+ * ## Expo Go Limitation
+ *
+ * From SDK 53, Expo Go removed Android push notification support. The
+ * `expo-notifications` JS module has a top-level side effect in
+ * `DevicePushTokenAutoRegistration.fx.js` that throws on module load.
+ *
+ * **Fix:** `metro.config.js` intercepts the `expo-notifications` module
+ * resolution and returns a stub (`expo-notifications-stub.ts`) at bundle time.
+ * The stub has matching exports but zero side effects. No code changes needed
+ * when moving to a development build — the stub is swapped out automatically.
+ *
+ * To use the real module (dev build / EAS):
+ *   EXPO_PUBLIC_USE_REAL_NOTIFICATIONS=true npx expo run:android
+ *
  * ## Local Notifications
  *
  * | Notification | Trigger | Scheduling |
@@ -23,14 +37,6 @@
  * - subscribeToRealtimeChannel() — listen for notification events from server
  * - handleNotificationResponse() — deep-link on notification tap
  * - notifyPush Edge Function — server-side push sender via Expo Push API
- *
- * ## Expo Go Limitation
- *
- * From SDK 53, Expo Go removed Android push notification support. The import
- * of `expo-notifications` itself throws on Android in Expo Go. To work around
- * this, all imports are lazy (dynamic `import()` inside each function).
- * Local notifications still work on iOS in Expo Go and on both platforms
- * when using a development build.
  */
 
 import { Platform } from 'react-native';
