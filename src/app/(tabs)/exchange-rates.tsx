@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
+  FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   View,
@@ -45,9 +45,45 @@ type RateDisplay = {
   from: string;
   to: string;
   rate: number;
+  editable: boolean;
 };
 
 const PAIRS = Object.keys(REFERENCE_RATES);
+
+// ---------------------------------------------------------------------------
+// Memoized rate row — only re-renders when its specific item changes
+// ---------------------------------------------------------------------------
+
+const RateRow = memo(function RateRow({ item }: { item: RateDisplay }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.rateRow}>
+      <ThemedText type="default" style={{ fontWeight: '500', minWidth: 40 }}>
+        {item.to}
+      </ThemedText>
+      <ThemedText
+        type="default"
+        themeColor="textSecondary"
+        style={{
+          flex: 1,
+          textAlign: 'right',
+          paddingHorizontal: Spacing.two,
+          paddingVertical: Spacing.one,
+          fontSize: 15,
+          fontVariant: ['tabular-nums'],
+        }}>
+        {item.rate.toFixed(4)}
+      </ThemedText>
+      {item.editable && (
+        <SymbolView
+          name={{ ios: 'square.and.pencil', android: 'edit', web: 'edit' }}
+          size={16}
+          tintColor={theme.primary}
+        />
+      )}
+    </View>
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -63,7 +99,6 @@ export default function ExchangeRatesScreen() {
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [intervalHrs, setIntervalHrs] = useState('24');
   const [rates, setRates] = useState<RateDisplay[]>([]);
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -77,14 +112,17 @@ export default function ExchangeRatesScreen() {
       setAutoUpdate(auto !== 'false');
       setIntervalHrs(interval || '24');
 
-      // Load reference rates for display
       const allRates: RateDisplay[] = [];
       for (const code of PAIRS) {
         if (code === b) continue;
-        allRates.push({ from: b, to: code, rate: REFERENCE_RATES[code] });
+        allRates.push({
+          from: b,
+          to: code,
+          rate: REFERENCE_RATES[code],
+          editable: auto === 'false',
+        });
       }
       setRates(allRates);
-      setLoaded(true);
     });
   }, [user, db]);
 
@@ -93,6 +131,8 @@ export default function ExchangeRatesScreen() {
       if (!user) return;
       setAutoUpdate(val);
       setPreference(db, user.id, 'fx_auto_update', val ? 'true' : 'false');
+      // Toggle editable state on all rates
+      setRates((prev) => prev.map((r) => ({ ...r, editable: !val })));
     },
     [user, db],
   );
@@ -107,42 +147,10 @@ export default function ExchangeRatesScreen() {
     [user, db],
   );
 
-  const handleOverride = useCallback(
-    (code: string, val: string) => {
-      if (!user) return;
-      const num = parseFloat(val);
-      if (isNaN(num) || num <= 0) return;
-      setRates((prev) =>
-        prev.map((r) => (r.to === code ? { ...r, rate: num } : r)),
-      );
-    },
-    [user],
-  );
-
-  return (
-    <ThemedView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}>
-          <SymbolView
-            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-            size={22}
-            tintColor={theme.text}
-          />
-        </Pressable>
-        <ThemedText type="title" style={styles.headerTitle}>
-          Exchange Rates
-        </ThemedText>
-      </View>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
-        {/* Auto-update toggle */}
+  const renderHeader = useCallback(
+    () => (
+      <>
+        {/* Auto-update toggle card */}
         <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
@@ -186,50 +194,66 @@ export default function ExchangeRatesScreen() {
           )}
         </View>
 
-        {/* Rates list */}
+        {/* Section header */}
         <View style={styles.sectionHeader}>
           <ThemedText type="callout" style={{ fontWeight: '600' }}>
             1 {base} =
           </ThemedText>
         </View>
+      </>
+    ),
+    [theme, autoUpdate, base, intervalHrs, handleToggleAuto, handleIntervalChange],
+  );
 
-        <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-          {rates.map((r, idx) => (
-            <View key={r.to}>
-              {idx > 0 && <View style={[styles.divider, { backgroundColor: theme.divider }]} />}
-              <View style={styles.rateRow}>
-                <ThemedText type="default" style={{ fontWeight: '500', minWidth: 40 }}>
-                  {r.to}
-                </ThemedText>
-                <TextInput
-                  style={[
-                    styles.rateInput,
-                    { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.inputBackground },
-                    !autoUpdate && { borderColor: theme.primary, borderWidth: 1.5 },
-                  ]}
-                  value={r.rate.toFixed(4)}
-                  onChangeText={(v) => handleOverride(r.to, v)}
-                  keyboardType="decimal-pad"
-                  editable={!autoUpdate}
-                />
-                {!autoUpdate && (
-                  <SymbolView
-                    name={{ ios: 'square.and.pencil', android: 'edit', web: 'edit' }}
-                    size={16}
-                    tintColor={theme.primary}
-                  />
-                )}
-              </View>
-            </View>
-          ))}
-        </View>
+  const renderFooter = useCallback(
+    () =>
+      autoUpdate ? (
+        <ThemedText style={styles.hint} themeColor="textSecondary">
+          Disable auto-update to manually override exchange rates.
+        </ThemedText>
+      ) : null,
+    [autoUpdate],
+  );
 
-        {autoUpdate && (
-          <ThemedText style={styles.hint} themeColor="textSecondary">
-            Disable auto-update to manually override exchange rates.
-          </ThemedText>
-        )}
-      </ScrollView>
+  const renderItem = useCallback(
+    ({ item }: { item: RateDisplay }) => <RateRow item={item} />,
+    [],
+  );
+
+  const keyExtractor = useCallback((item: RateDisplay) => item.to, []);
+
+  return (
+    <ThemedView style={styles.container}>
+      {/* Header outside list — no re-layout */}
+      <View style={styles.header}>
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}>
+          <SymbolView
+            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+            size={22}
+            tintColor={theme.text}
+          />
+        </Pressable>
+        <ThemedText type="title" style={styles.headerTitle}>
+          Exchange Rates
+        </ThemedText>
+      </View>
+
+      <FlatList
+        data={rates}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={8}
+        windowSize={5}
+        initialNumToRender={16}
+      />
     </ThemedView>
   );
 }
@@ -256,18 +280,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
   },
-  scroll: {
-    flex: 1,
-  },
   scrollContent: {
     padding: Spacing.three,
     paddingBottom: Spacing.six,
-    gap: Spacing.three,
   },
   card: {
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.three,
+    marginBottom: Spacing.three,
   },
   settingRow: {
     flexDirection: 'row',
@@ -291,28 +312,18 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     paddingTop: Spacing.one,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.two,
   },
   rateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.two,
-    gap: Spacing.two,
-  },
-  rateInput: {
-    flex: 1,
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    fontSize: 15,
-    textAlign: 'right',
+    paddingHorizontal: Spacing.three,
+    minHeight: 44,
   },
   hint: {
     fontSize: 13,
     textAlign: 'center',
-    paddingTop: Spacing.one,
+    paddingTop: Spacing.three,
   },
 });
