@@ -9,7 +9,11 @@ export type UserPreferenceKey =
   | 'state'
   | 'tax_year'
   | 'default_currency'
-  | 'notifications_enabled';
+  | 'notifications_enabled'
+  // Profile fields
+  | 'profile_first_name'
+  | 'profile_last_name'
+  | 'profile_business_phone';
 
 const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   filing_status: 'single',
@@ -17,6 +21,9 @@ const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   tax_year: String(new Date().getFullYear()),
   default_currency: 'USD',
   notifications_enabled: 'true',
+  profile_first_name: '',
+  profile_last_name: '',
+  profile_business_phone: '',
 };
 
 export async function getPreference(
