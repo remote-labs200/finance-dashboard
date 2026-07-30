@@ -8,11 +8,9 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
@@ -20,7 +18,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useSQLiteContext } from '@/db/provider';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { useTheme } from '@/hooks/use-theme';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import {
   getPreference,
   setPreference,
@@ -117,201 +115,197 @@ export default function PersonalProfileScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <View style={styles.flex}>
+        {/* ── Header bar ─────────────────────────────────────── */}
+        <View style={[styles.header, { backgroundColor: theme.background }]}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [
+              styles.backBtn,
+              pressed && { opacity: 0.6 },
+            ]}>
+            <SymbolView
+              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+              size={22}
+              tintColor={theme.primary}
+            />
+            <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
+              Account
+            </ThemedText>
+          </Pressable>
+
+          <ThemedText type="title" style={{ fontSize: 24 }}>
+            Personal Profile
+          </ThemedText>
+        </View>
+
+        {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={styles.flex}>
-              {/* ── Header bar ─────────────────────────────────── */}
-              <View style={styles.header}>
-                <Pressable
-                  onPress={() => router.back()}
-                  style={({ pressed }) => [
-                    styles.backBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}>
-                  <SymbolView
-                    name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-                    size={22}
-                    tintColor={theme.primary}
-                  />
-                  <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
-                    Account
-                  </ThemedText>
-                </Pressable>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
 
-                <ThemedText type="title" style={{ fontSize: 24 }}>
-                  Personal Profile
+            {/* Avatar section */}
+            <View style={styles.avatarSection}>
+              <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+                <ThemedText style={styles.avatarText}>
+                  {userInitial}
                 </ThemedText>
               </View>
+              <ThemedText type="default" style={{ fontWeight: '600', fontSize: 17 }}>
+                {displayName}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {user?.email ?? ''}
+              </ThemedText>
+            </View>
 
-              {/* ── Form ────────────────────────────────────────── */}
-              <ScrollView
-                contentContainerStyle={styles.scroll}
-                keyboardShouldPersistTaps="handled">
+            {/* Form card */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              {/* First Name */}
+              <View style={styles.fieldGroup}>
+                <ThemedText type="callout" style={styles.fieldLabel}>
+                  First Name
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: theme.text,
+                      borderColor: theme.inputBorder,
+                      backgroundColor: theme.inputBackground,
+                    },
+                  ]}
+                  placeholder="Jane"
+                  placeholderTextColor={theme.placeholder}
+                  value={fields.firstName}
+                  onChangeText={(text) =>
+                    setFields((prev) => ({ ...prev, firstName: text }))
+                  }
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+              </View>
 
-                {/* Avatar section */}
-                <View style={styles.avatarSection}>
-                  <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-                    <ThemedText style={styles.avatarText}>
-                      {userInitial}
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="default" style={{ fontWeight: '600', fontSize: 17 }}>
-                    {displayName}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+
+              {/* Last Name */}
+              <View style={styles.fieldGroup}>
+                <ThemedText type="callout" style={styles.fieldLabel}>
+                  Last Name
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: theme.text,
+                      borderColor: theme.inputBorder,
+                      backgroundColor: theme.inputBackground,
+                    },
+                  ]}
+                  placeholder="Doe"
+                  placeholderTextColor={theme.placeholder}
+                  value={fields.lastName}
+                  onChangeText={(text) =>
+                    setFields((prev) => ({ ...prev, lastName: text }))
+                  }
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                />
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+
+              {/* Business Phone */}
+              <View style={styles.fieldGroup}>
+                <ThemedText type="callout" style={styles.fieldLabel}>
+                  Business Phone
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      color: theme.text,
+                      borderColor: theme.inputBorder,
+                      backgroundColor: theme.inputBackground,
+                    },
+                  ]}
+                  placeholder="+1 (555) 123-4567"
+                  placeholderTextColor={theme.placeholder}
+                  value={fields.businessPhone}
+                  onChangeText={(text) =>
+                    setFields((prev) => ({ ...prev, businessPhone: text }))
+                  }
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                />
+              </View>
+            </View>
+
+            {/* Email section (read-only) */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              <View style={styles.fieldGroup}>
+                <ThemedText type="callout" style={styles.fieldLabel}>
+                  Email
+                </ThemedText>
+                <View
+                  style={[
+                    styles.emailDisplay,
+                    { borderColor: theme.inputBorder, backgroundColor: theme.backgroundSelected },
+                  ]}>
+                  <ThemedText type="default" themeColor="textSecondary">
                     {user?.email ?? ''}
                   </ThemedText>
                 </View>
-
-                {/* Form card */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  {/* First Name */}
-                  <View style={styles.fieldGroup}>
-                    <ThemedText type="callout" style={styles.fieldLabel}>
-                      First Name
-                    </ThemedText>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          color: theme.text,
-                          borderColor: theme.inputBorder,
-                          backgroundColor: theme.inputBackground,
-                        },
-                      ]}
-                      placeholder="Jane"
-                      placeholderTextColor={theme.placeholder}
-                      value={fields.firstName}
-                      onChangeText={(text) =>
-                        setFields((prev) => ({ ...prev, firstName: text }))
-                      }
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      returnKeyType="next"
-                    />
-                  </View>
-
-                  <View style={[styles.divider, { backgroundColor: theme.divider }]} />
-
-                  {/* Last Name */}
-                  <View style={styles.fieldGroup}>
-                    <ThemedText type="callout" style={styles.fieldLabel}>
-                      Last Name
-                    </ThemedText>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          color: theme.text,
-                          borderColor: theme.inputBorder,
-                          backgroundColor: theme.inputBackground,
-                        },
-                      ]}
-                      placeholder="Doe"
-                      placeholderTextColor={theme.placeholder}
-                      value={fields.lastName}
-                      onChangeText={(text) =>
-                        setFields((prev) => ({ ...prev, lastName: text }))
-                      }
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                      returnKeyType="next"
-                    />
-                  </View>
-
-                  <View style={[styles.divider, { backgroundColor: theme.divider }]} />
-
-                  {/* Business Phone */}
-                  <View style={styles.fieldGroup}>
-                    <ThemedText type="callout" style={styles.fieldLabel}>
-                      Business Phone
-                    </ThemedText>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          color: theme.text,
-                          borderColor: theme.inputBorder,
-                          backgroundColor: theme.inputBackground,
-                        },
-                      ]}
-                      placeholder="+1 (555) 123-4567"
-                      placeholderTextColor={theme.placeholder}
-                      value={fields.businessPhone}
-                      onChangeText={(text) =>
-                        setFields((prev) => ({ ...prev, businessPhone: text }))
-                      }
-                      keyboardType="phone-pad"
-                      returnKeyType="done"
-                    />
-                  </View>
-                </View>
-
-                {/* Email section (read-only) */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  <View style={styles.fieldGroup}>
-                    <ThemedText type="callout" style={styles.fieldLabel}>
-                      Email
-                    </ThemedText>
-                    <View
-                      style={[
-                        styles.emailDisplay,
-                        { borderColor: theme.inputBorder, backgroundColor: theme.backgroundSelected },
-                      ]}>
-                      <ThemedText type="default" themeColor="textSecondary">
-                        {user?.email ?? ''}
-                      </ThemedText>
-                    </View>
-                    <ThemedText type="small" themeColor="textTertiary">
-                      Email changes are managed in Account Security settings.
-                    </ThemedText>
-                  </View>
-                </View>
-
-                {/* Spacer for tab bar */}
-                <View style={{ height: BottomTabInset + Spacing.six }} />
-              </ScrollView>
-
-              {/* ── Save button (sticky footer) ──────────────────── */}
-              <View
-                style={[
-                  styles.footer,
-                  {
-                    borderTopColor: theme.divider,
-                    backgroundColor: theme.background,
-                  },
-                ]}>
-                <Pressable
-                  onPress={handleSave}
-                  disabled={saving}
-                  style={({ pressed }) => [
-                    styles.saveBtn,
-                    { backgroundColor: theme.primary },
-                    pressed && { opacity: 0.8 },
-                    saving && { opacity: 0.6 },
-                  ]}>
-                  <ThemedText
-                    type="default"
-                    style={{ color: theme.primaryText, fontWeight: '600' }}>
-                    {saving ? 'Saving\u2026' : 'Save Changes'}
-                  </ThemedText>
-                </Pressable>
+                <ThemedText type="small" themeColor="textTertiary">
+                  Email changes are managed in Account Security settings.
+                </ThemedText>
               </View>
             </View>
-          </TouchableWithoutFeedback>
+
+            {/* Spacer for bottom safety */}
+            <View style={{ height: Spacing.six }} />
+          </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+
+        {/* ── Save button (sticky footer) ──────────────────────── */}
+        <View
+          style={[
+            styles.footer,
+            {
+              borderTopColor: theme.divider,
+              backgroundColor: theme.background,
+            },
+          ]}>
+          <Pressable
+            onPress={handleSave}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.saveBtn,
+              { backgroundColor: theme.primary },
+              pressed && { opacity: 0.8 },
+              saving && { opacity: 0.6 },
+            ]}>
+            <ThemedText
+              type="default"
+              style={{ color: theme.primaryText, fontWeight: '600' }}>
+              {saving ? 'Saving\u2026' : 'Save Changes'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safe: { flex: 1 },
   flex: { flex: 1 },
 
   /* Header */

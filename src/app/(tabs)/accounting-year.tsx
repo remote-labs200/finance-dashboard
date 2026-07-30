@@ -7,11 +7,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
@@ -19,7 +17,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useSQLiteContext } from '@/db/provider';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { useTheme } from '@/hooks/use-theme';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { getPreference, setPreference } from '@/db/preferences-repo';
 
 // ---------------------------------------------------------------------------
@@ -114,59 +112,90 @@ export default function AccountingYearScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <View style={styles.flex}>
+        {/* ── Header bar ─────────────────────────────────────── */}
+        <View style={[styles.header, { backgroundColor: theme.background }]}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
+            <SymbolView
+              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+              size={22}
+              tintColor={theme.primary}
+            />
+            <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
+              Account
+            </ThemedText>
+          </Pressable>
+          <ThemedText type="title" style={{ fontSize: 24 }}>
+            Accounting Year
+          </ThemedText>
+        </View>
+
+        {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={styles.flex}>
-              {/* ── Header bar ─────────────────────────────────── */}
-              <View style={styles.header}>
-                <Pressable
-                  onPress={() => router.back()}
-                  style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-                  <SymbolView
-                    name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-                    size={22}
-                    tintColor={theme.primary}
-                  />
-                  <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
-                    Account
-                  </ThemedText>
-                </Pressable>
-                <ThemedText type="title" style={{ fontSize: 24 }}>
-                  Accounting Year
-                </ThemedText>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+
+            {/* Year type */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              <ThemedText type="callout" style={styles.fieldLabel}>
+                Accounting Year Type
+              </ThemedText>
+              <View style={styles.chipRow}>
+                {YEAR_TYPES.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => setYearType(opt.value)}
+                    style={[
+                      styles.chip,
+                      {
+                        borderColor: yearType === opt.value ? theme.primary : theme.divider,
+                        backgroundColor: yearType === opt.value ? theme.primary + '15' : 'transparent',
+                      },
+                    ]}>
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: yearType === opt.value ? theme.primary : theme.textSecondary,
+                        fontWeight: yearType === opt.value ? '600' : '400',
+                      }}>
+                      {opt.label}
+                    </ThemedText>
+                  </Pressable>
+                ))}
               </View>
+            </View>
 
-              {/* ── Form ───────────────────────────────────────── */}
-              <ScrollView
-                contentContainerStyle={styles.scroll}
-                keyboardShouldPersistTaps="handled">
-
-                {/* Year type */}
+            {/* Fiscal year start (only shown when fiscal is selected) */}
+            {yearType === 'fiscal' && (
+              <>
                 <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
                   <ThemedText type="callout" style={styles.fieldLabel}>
-                    Accounting Year Type
+                    Fiscal Year Start Month
                   </ThemedText>
                   <View style={styles.chipRow}>
-                    {YEAR_TYPES.map((opt) => (
+                    {MONTHS.map((opt) => (
                       <Pressable
                         key={opt.value}
-                        onPress={() => setYearType(opt.value)}
+                        onPress={() => setStartMonth(opt.value)}
                         style={[
-                          styles.chip,
+                          styles.monthChip,
                           {
-                            borderColor: yearType === opt.value ? theme.primary : theme.divider,
-                            backgroundColor: yearType === opt.value ? theme.primary + '15' : 'transparent',
+                            borderColor: startMonth === opt.value ? theme.primary : theme.divider,
+                            backgroundColor: startMonth === opt.value ? theme.primary + '15' : 'transparent',
                           },
                         ]}>
                         <ThemedText
                           type="small"
                           style={{
-                            color: yearType === opt.value ? theme.primary : theme.textSecondary,
-                            fontWeight: yearType === opt.value ? '600' : '400',
+                            color: startMonth === opt.value ? theme.primary : theme.textSecondary,
+                            fontWeight: startMonth === opt.value ? '600' : '400',
                           }}>
                           {opt.label}
                         </ThemedText>
@@ -175,95 +204,61 @@ export default function AccountingYearScreen() {
                   </View>
                 </View>
 
-                {/* Fiscal year start (only shown when fiscal is selected) */}
-                {yearType === 'fiscal' && (
-                  <>
-                    <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                      <ThemedText type="callout" style={styles.fieldLabel}>
-                        Fiscal Year Start Month
-                      </ThemedText>
-                      <View style={styles.chipRow}>
-                        {MONTHS.map((opt) => (
-                          <Pressable
-                            key={opt.value}
-                            onPress={() => setStartMonth(opt.value)}
-                            style={[
-                              styles.monthChip,
-                              {
-                                borderColor: startMonth === opt.value ? theme.primary : theme.divider,
-                                backgroundColor: startMonth === opt.value ? theme.primary + '15' : 'transparent',
-                              },
-                            ]}>
-                            <ThemedText
-                              type="small"
-                              style={{
-                                color: startMonth === opt.value ? theme.primary : theme.textSecondary,
-                                fontWeight: startMonth === opt.value ? '600' : '400',
-                              }}>
-                              {opt.label}
-                            </ThemedText>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-
-                    <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                      <ThemedText type="callout" style={styles.fieldLabel}>
-                        Fiscal Year Start Day
-                      </ThemedText>
-                      <View style={styles.chipRow}>
-                        {Array.from({ length: 28 }, (_, i) => String(i + 1)).map((day) => (
-                          <Pressable
-                            key={day}
-                            onPress={() => setStartDay(day)}
-                            style={[
-                              styles.dayChip,
-                              {
-                                borderColor: startDay === day ? theme.primary : theme.divider,
-                                backgroundColor: startDay === day ? theme.primary + '15' : 'transparent',
-                              },
-                            ]}>
-                            <ThemedText
-                              type="small"
-                              style={{
-                                color: startDay === day ? theme.primary : theme.textSecondary,
-                                fontWeight: startDay === day ? '600' : '400',
-                              }}>
-                              {day}
-                            </ThemedText>
-                          </Pressable>
-                        ))}
-                      </View>
-                      <ThemedText type="small" themeColor="textTertiary" style={{ marginTop: Spacing.half }}>
-                        Day 29\u201331 default to the 1st of the next month for simplicity.
-                      </ThemedText>
-                    </View>
-                  </>
-                )}
-
-                {/* Spacer for tab bar */}
-                <View style={{ height: BottomTabInset + Spacing.six }} />
-              </ScrollView>
-
-              {/* ── Save button ────────────────────────────────── */}
-              <View style={[styles.footer, { borderTopColor: theme.divider, backgroundColor: theme.background }]}>
-                <Pressable
-                  onPress={handleSave}
-                  disabled={saving}
-                  style={({ pressed }) => [
-                    styles.saveBtn, { backgroundColor: theme.primary },
-                    pressed && { opacity: 0.8 },
-                    saving && { opacity: 0.6 },
-                  ]}>
-                  <ThemedText type="default" style={{ color: theme.primaryText, fontWeight: '600' }}>
-                    {saving ? 'Saving\u2026' : 'Save Changes'}
+                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+                  <ThemedText type="callout" style={styles.fieldLabel}>
+                    Fiscal Year Start Day
                   </ThemedText>
-                </Pressable>
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
+                  <View style={styles.chipRow}>
+                    {Array.from({ length: 28 }, (_, i) => String(i + 1)).map((day) => (
+                      <Pressable
+                        key={day}
+                        onPress={() => setStartDay(day)}
+                        style={[
+                          styles.dayChip,
+                          {
+                            borderColor: startDay === day ? theme.primary : theme.divider,
+                            backgroundColor: startDay === day ? theme.primary + '15' : 'transparent',
+                          },
+                        ]}>
+                        <ThemedText
+                          type="small"
+                          style={{
+                            color: startDay === day ? theme.primary : theme.textSecondary,
+                            fontWeight: startDay === day ? '600' : '400',
+                          }}>
+                          {day}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <ThemedText type="small" themeColor="textTertiary" style={{ marginTop: Spacing.half }}>
+                    Day 29\u201331 default to the 1st of the next month for simplicity.
+                  </ThemedText>
+                </View>
+              </>
+            )}
+
+            {/* Spacer for bottom safety */}
+            <View style={{ height: Spacing.six }} />
+          </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+
+        {/* ── Save button (sticky footer) ──────────────────────── */}
+        <View style={[styles.footer, { borderTopColor: theme.divider, backgroundColor: theme.background }]}>
+          <Pressable
+            onPress={handleSave}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.saveBtn, { backgroundColor: theme.primary },
+              pressed && { opacity: 0.8 },
+              saving && { opacity: 0.6 },
+            ]}>
+            <ThemedText type="default" style={{ color: theme.primaryText, fontWeight: '600' }}>
+              {saving ? 'Saving\u2026' : 'Save Changes'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
     </ThemedView>
   );
 }
@@ -274,7 +269,6 @@ export default function AccountingYearScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safe: { flex: 1 },
   flex: { flex: 1 },
 
   /* Header */

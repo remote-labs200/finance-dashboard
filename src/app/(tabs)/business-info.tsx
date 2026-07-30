@@ -8,11 +8,9 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
@@ -20,7 +18,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useSQLiteContext } from '@/db/provider';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { useTheme } from '@/hooks/use-theme';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { getPreference, setPreference } from '@/db/preferences-repo';
 
 // ---------------------------------------------------------------------------
@@ -167,108 +165,105 @@ export default function BusinessInfoScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <View style={styles.flex}>
+        {/* ── Header bar ─────────────────────────────────────── */}
+        <View style={[styles.header, { backgroundColor: theme.background }]}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
+            <SymbolView
+              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+              size={22}
+              tintColor={theme.primary}
+            />
+            <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
+              Account
+            </ThemedText>
+          </Pressable>
+          <ThemedText type="title" style={{ fontSize: 24 }}>
+            Business Information
+          </ThemedText>
+        </View>
+
+        {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={styles.flex}>
-              {/* ── Header bar ─────────────────────────────────── */}
-              <View style={styles.header}>
-                <Pressable
-                  onPress={() => router.back()}
-                  style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-                  <SymbolView
-                    name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-                    size={22}
-                    tintColor={theme.primary}
-                  />
-                  <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
-                    Account
-                  </ThemedText>
-                </Pressable>
-                <ThemedText type="title" style={{ fontSize: 24 }}>
-                  Business Information
-                </ThemedText>
-              </View>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
 
-              {/* ── Form ───────────────────────────────────────── */}
-              <ScrollView
-                contentContainerStyle={styles.scroll}
-                keyboardShouldPersistTaps="handled">
+            {/* Legal name / EIN card */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              {renderTextRow('Legal Business Name', fields.legalName, (v) => update({ legalName: v }), { placeholder: 'Acme Consulting LLC' })}
+              {renderTextRow('EIN / Tax ID', fields.ein, (v) => update({ ein: v }), { placeholder: 'XX-XXXXXXX', keyboardType: 'default', autoCapitalize: 'characters' })}
+            </View>
 
-                {/* Legal name / structure card */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  {renderTextRow('Legal Business Name', fields.legalName, (v) => update({ legalName: v }), { placeholder: 'Acme Consulting LLC' })}
-                  {renderTextRow('EIN / Tax ID', fields.ein, (v) => update({ ein: v }), { placeholder: 'XX-XXXXXXX', keyboardType: 'default', autoCapitalize: 'characters' })}
-                </View>
-
-                {/* Business structure picker */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  <ThemedText type="callout" style={styles.fieldLabel}>
-                    Business Structure
-                  </ThemedText>
-                  <View style={styles.structureRow}>
-                    {BUSINESS_STRUCTURES.map((opt) => (
-                      <Pressable
-                        key={opt.value}
-                        onPress={() => update({ structure: opt.value })}
-                        style={[
-                          styles.structureChip,
-                          {
-                            borderColor: fields.structure === opt.value ? theme.primary : theme.divider,
-                            backgroundColor: fields.structure === opt.value ? theme.primary + '15' : 'transparent',
-                          },
-                        ]}>
-                        <ThemedText
-                          type="small"
-                          style={{
-                            color: fields.structure === opt.value ? theme.primary : theme.textSecondary,
-                            fontWeight: fields.structure === opt.value ? '600' : '400',
-                          }}>
-                          {opt.label}
-                        </ThemedText>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Address card */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  <ThemedText type="callout" style={[styles.fieldLabel, { marginBottom: Spacing.one }]}>
-                    Business Address
-                  </ThemedText>
-                  {renderTextRow('Address Line 1', fields.addressLine1, (v) => update({ addressLine1: v }), { placeholder: '123 Main St' })}
-                  {renderTextRow('Address Line 2', fields.addressLine2, (v) => update({ addressLine2: v }), { placeholder: 'Suite 100' })}
-                  {renderTextRow('City', fields.city, (v) => update({ city: v }), { placeholder: 'San Francisco' })}
-                  {renderTextRow('State', fields.state, (v) => update({ state: v }), { placeholder: 'CA', autoCapitalize: 'characters' })}
-                  {renderTextRow('ZIP Code', fields.zip, (v) => update({ zip: v }), { placeholder: '94105', keyboardType: 'phone-pad', last: true })}
-                </View>
-
-                {/* Spacer for tab bar */}
-                <View style={{ height: BottomTabInset + Spacing.six }} />
-              </ScrollView>
-
-              {/* ── Save button ────────────────────────────────── */}
-              <View style={[styles.footer, { borderTopColor: theme.divider, backgroundColor: theme.background }]}>
-                <Pressable
-                  onPress={handleSave}
-                  disabled={saving}
-                  style={({ pressed }) => [
-                    styles.saveBtn, { backgroundColor: theme.primary },
-                    pressed && { opacity: 0.8 },
-                    saving && { opacity: 0.6 },
-                  ]}>
-                  <ThemedText type="default" style={{ color: theme.primaryText, fontWeight: '600' }}>
-                    {saving ? 'Saving\u2026' : 'Save Changes'}
-                  </ThemedText>
-                </Pressable>
+            {/* Business structure picker */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              <ThemedText type="callout" style={styles.fieldLabel}>
+                Business Structure
+              </ThemedText>
+              <View style={styles.structureRow}>
+                {BUSINESS_STRUCTURES.map((opt) => (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => update({ structure: opt.value })}
+                    style={[
+                      styles.structureChip,
+                      {
+                        borderColor: fields.structure === opt.value ? theme.primary : theme.divider,
+                        backgroundColor: fields.structure === opt.value ? theme.primary + '15' : 'transparent',
+                      },
+                    ]}>
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: fields.structure === opt.value ? theme.primary : theme.textSecondary,
+                        fontWeight: fields.structure === opt.value ? '600' : '400',
+                      }}>
+                      {opt.label}
+                    </ThemedText>
+                  </Pressable>
+                ))}
               </View>
             </View>
-          </TouchableWithoutFeedback>
+
+            {/* Address card */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              <ThemedText type="callout" style={[styles.fieldLabel, { marginBottom: Spacing.one }]}>
+                Business Address
+              </ThemedText>
+              {renderTextRow('Address Line 1', fields.addressLine1, (v) => update({ addressLine1: v }), { placeholder: '123 Main St' })}
+              {renderTextRow('Address Line 2', fields.addressLine2, (v) => update({ addressLine2: v }), { placeholder: 'Suite 100' })}
+              {renderTextRow('City', fields.city, (v) => update({ city: v }), { placeholder: 'San Francisco' })}
+              {renderTextRow('State', fields.state, (v) => update({ state: v }), { placeholder: 'CA', autoCapitalize: 'characters' })}
+              {renderTextRow('ZIP Code', fields.zip, (v) => update({ zip: v }), { placeholder: '94105', keyboardType: 'phone-pad', last: true })}
+            </View>
+
+            {/* Spacer for bottom safety */}
+            <View style={{ height: Spacing.six }} />
+          </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+
+        {/* ── Save button (sticky footer) ──────────────────────── */}
+        <View style={[styles.footer, { borderTopColor: theme.divider, backgroundColor: theme.background }]}>
+          <Pressable
+            onPress={handleSave}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.saveBtn, { backgroundColor: theme.primary },
+              pressed && { opacity: 0.8 },
+              saving && { opacity: 0.6 },
+            ]}>
+            <ThemedText type="default" style={{ color: theme.primaryText, fontWeight: '600' }}>
+              {saving ? 'Saving\u2026' : 'Save Changes'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
     </ThemedView>
   );
 }
@@ -279,7 +274,6 @@ export default function BusinessInfoScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safe: { flex: 1 },
   flex: { flex: 1 },
 
   /* Header */

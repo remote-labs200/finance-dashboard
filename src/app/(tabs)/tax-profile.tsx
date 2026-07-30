@@ -7,11 +7,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
@@ -19,7 +17,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useSQLiteContext } from '@/db/provider';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { useTheme } from '@/hooks/use-theme';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { getPreference, setPreference } from '@/db/preferences-repo';
 
 // ---------------------------------------------------------------------------
@@ -170,78 +168,75 @@ export default function TaxProfileScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <View style={styles.flex}>
+        {/* ── Header bar ─────────────────────────────────────── */}
+        <View style={[styles.header, { backgroundColor: theme.background }]}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
+            <SymbolView
+              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+              size={22}
+              tintColor={theme.primary}
+            />
+            <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
+              Account
+            </ThemedText>
+          </Pressable>
+          <ThemedText type="title" style={{ fontSize: 24 }}>
+            Tax Profile
+          </ThemedText>
+        </View>
+
+        {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={styles.flex}>
-              {/* ── Header bar ─────────────────────────────────── */}
-              <View style={styles.header}>
-                <Pressable
-                  onPress={() => router.back()}
-                  style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-                  <SymbolView
-                    name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-                    size={22}
-                    tintColor={theme.primary}
-                  />
-                  <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
-                    Account
-                  </ThemedText>
-                </Pressable>
-                <ThemedText type="title" style={{ fontSize: 24 }}>
-                  Tax Profile
-                </ThemedText>
-              </View>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
 
-              {/* ── Form ───────────────────────────────────────── */}
-              <ScrollView
-                contentContainerStyle={styles.scroll}
-                keyboardShouldPersistTaps="handled">
-
-                {/* Filing Status */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  {renderSelector('Filing Status', FILING_STATUSES, fields.filingStatus as any, (v) => update({ filingStatus: v }))}
-                </View>
-
-                {/* Entity Type */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  {renderSelector('Entity Type', ENTITY_TYPES, fields.entityType as any, (v) => update({ entityType: v }))}
-                </View>
-
-                {/* Tax Locale */}
-                <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-                  {renderSelector('Tax Jurisdiction', LOCALES, fields.locale as any, (v) => update({ locale: v }))}
-                  <ThemedText type="small" themeColor="textTertiary" style={{ marginTop: Spacing.half }}>
-                    Your tax jurisdiction determines the tax brackets, deduction rules, and quarterly due dates used for estimation.
-                  </ThemedText>
-                </View>
-
-                {/* Spacer for tab bar */}
-                <View style={{ height: BottomTabInset + Spacing.six }} />
-              </ScrollView>
-
-              {/* ── Save button ────────────────────────────────── */}
-              <View style={[styles.footer, { borderTopColor: theme.divider, backgroundColor: theme.background }]}>
-                <Pressable
-                  onPress={handleSave}
-                  disabled={saving}
-                  style={({ pressed }) => [
-                    styles.saveBtn, { backgroundColor: theme.primary },
-                    pressed && { opacity: 0.8 },
-                    saving && { opacity: 0.6 },
-                  ]}>
-                  <ThemedText type="default" style={{ color: theme.primaryText, fontWeight: '600' }}>
-                    {saving ? 'Saving\u2026' : 'Save Changes'}
-                  </ThemedText>
-                </Pressable>
-              </View>
+            {/* Filing Status */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              {renderSelector('Filing Status', FILING_STATUSES, fields.filingStatus as any, (v) => update({ filingStatus: v }))}
             </View>
-          </TouchableWithoutFeedback>
+
+            {/* Entity Type */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              {renderSelector('Entity Type', ENTITY_TYPES, fields.entityType as any, (v) => update({ entityType: v }))}
+            </View>
+
+            {/* Tax Locale */}
+            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              {renderSelector('Tax Jurisdiction', LOCALES, fields.locale as any, (v) => update({ locale: v }))}
+              <ThemedText type="small" themeColor="textTertiary" style={{ marginTop: Spacing.half }}>
+                Your tax jurisdiction determines the tax brackets, deduction rules, and quarterly due dates used for estimation.
+              </ThemedText>
+            </View>
+
+            {/* Spacer for bottom safety */}
+            <View style={{ height: Spacing.six }} />
+          </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+
+        {/* ── Save button (sticky footer) ──────────────────────── */}
+        <View style={[styles.footer, { borderTopColor: theme.divider, backgroundColor: theme.background }]}>
+          <Pressable
+            onPress={handleSave}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.saveBtn, { backgroundColor: theme.primary },
+              pressed && { opacity: 0.8 },
+              saving && { opacity: 0.6 },
+            ]}>
+            <ThemedText type="default" style={{ color: theme.primaryText, fontWeight: '600' }}>
+              {saving ? 'Saving\u2026' : 'Save Changes'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
     </ThemedView>
   );
 }
@@ -252,7 +247,6 @@ export default function TaxProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  safe: { flex: 1 },
   flex: { flex: 1 },
 
   /* Header */
