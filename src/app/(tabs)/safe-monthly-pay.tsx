@@ -134,6 +134,7 @@ export default function SafeMonthlyPayScreen() {
               maxLength={3}
               placeholder="70"
               placeholderTextColor={theme.placeholder}
+              underlineColorAndroid="transparent"
             />
             <ThemedText type="title" style={styles.unit}>%</ThemedText>
           </View>
@@ -224,6 +225,7 @@ export default function SafeMonthlyPayScreen() {
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={theme.placeholder}
+              underlineColorAndroid="transparent"
             />
             <ThemedText type="default" themeColor="textSecondary">cents</ThemedText>
           </View>

@@ -238,6 +238,7 @@ export default function CloudSyncScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="url"
+                    underlineColorAndroid="transparent"
                   />
 
                   <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: Spacing.two }}>Anon Publishable Key</ThemedText>
@@ -253,6 +254,7 @@ export default function CloudSyncScreen() {
                     onChangeText={setSupabaseKey}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    underlineColorAndroid="transparent"
                   />
 
                   <Pressable onPress={handleSaveConfig} style={[styles.saveConfigBtn, { backgroundColor: theme.primary }]}>

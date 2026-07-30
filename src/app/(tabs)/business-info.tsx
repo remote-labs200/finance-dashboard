@@ -156,6 +156,7 @@ export default function BusinessInfoScreen() {
             autoCorrect={false}
             keyboardType={opts?.keyboardType ?? 'default'}
             returnKeyType="next"
+            underlineColorAndroid="transparent"
           />
         </View>
         {!opts?.last && <View style={[styles.divider, { backgroundColor: theme.divider }]} />}
@@ -188,7 +189,7 @@ export default function BusinessInfoScreen() {
         {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
           <ScrollView
             contentContainerStyle={styles.scroll}

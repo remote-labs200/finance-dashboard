@@ -150,6 +150,7 @@ export default function OnboardingScreen() {
                 value={businessName}
                 onChangeText={setBusinessName}
                 placeholderTextColor={colors.textSecondary}
+                underlineColorAndroid="transparent"
               />
 
               <ThemedText type="callout" style={styles.label}>Entity Type</ThemedText>
@@ -173,6 +174,7 @@ export default function OnboardingScreen() {
                 onChangeText={(t) => setStateCode(t.toUpperCase())}
                 maxLength={2}
                 placeholderTextColor={colors.textSecondary}
+                underlineColorAndroid="transparent"
               />
             </View>
           )}
@@ -205,6 +207,7 @@ export default function OnboardingScreen() {
                 keyboardType="number-pad"
                 maxLength={4}
                 placeholderTextColor={colors.textSecondary}
+                underlineColorAndroid="transparent"
               />
             </View>
           )}

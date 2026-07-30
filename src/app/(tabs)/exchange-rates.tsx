@@ -189,6 +189,7 @@ export default function ExchangeRatesScreen() {
                 keyboardType="number-pad"
                 placeholder="24"
                 placeholderTextColor={theme.placeholder}
+                underlineColorAndroid="transparent"
               />
             </View>
           )}

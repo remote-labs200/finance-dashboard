@@ -58,7 +58,7 @@ export default function SignUpScreen() {
           <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+            keyboardVerticalOffset={0}>
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled"
@@ -91,6 +91,7 @@ export default function SignUpScreen() {
                     autoCapitalize="none"
                     keyboardType="email-address"
                     style={[styles.input, { color: colors.text }]}
+                    underlineColorAndroid="transparent"
                   />
                 </View>
 

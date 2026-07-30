@@ -140,6 +140,7 @@ export default function TaxCalibrationScreen() {
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={theme.placeholder}
+              underlineColorAndroid="transparent"
             />
             <ThemedText type="title" style={styles.unit}>%</ThemedText>
           </View>
@@ -171,6 +172,7 @@ export default function TaxCalibrationScreen() {
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={theme.placeholder}
+              underlineColorAndroid="transparent"
             />
             <ThemedText type="default" themeColor="textSecondary">cents</ThemedText>
           </View>

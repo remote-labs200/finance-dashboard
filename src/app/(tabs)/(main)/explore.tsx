@@ -144,6 +144,7 @@ export default function TransactionsScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               clearButtonMode="while-editing"
+              underlineColorAndroid="transparent"
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>

@@ -191,7 +191,7 @@ export default function TaxProfileScreen() {
         {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
           <ScrollView
             contentContainerStyle={styles.scroll}

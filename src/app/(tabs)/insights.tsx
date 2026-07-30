@@ -187,6 +187,7 @@ export default function InsightsScreen() {
               onChangeText={setInput}
               placeholderTextColor={colors.placeholder}
               editable={!loading}
+              underlineColorAndroid="transparent"
             />
             <Pressable
               onPress={() => sendMessage(input)}

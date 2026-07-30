@@ -225,6 +225,7 @@ export default function MileageTrackerSettingsScreen() {
                   keyboardType="decimal-pad"
                   placeholder="0.000"
                   placeholderTextColor={theme.placeholder}
+                  underlineColorAndroid="transparent"
                 />
                 <ThemedText type="default" themeColor="textSecondary">
                   / mile

@@ -149,6 +149,7 @@ export default function TransactionScreen() {
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
                 placeholderTextColor={colors.placeholder}
+                underlineColorAndroid="transparent"
               />
             </View>
 
@@ -183,6 +184,7 @@ export default function TransactionScreen() {
                 value={note}
                 onChangeText={setNote}
                 placeholderTextColor={colors.placeholder}
+                underlineColorAndroid="transparent"
               />
             </View>
 
@@ -195,6 +197,7 @@ export default function TransactionScreen() {
                 value={date}
                 onChangeText={setDate}
                 placeholderTextColor={colors.placeholder}
+                underlineColorAndroid="transparent"
               />
             </View>
 

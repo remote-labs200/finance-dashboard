@@ -142,7 +142,7 @@ export default function PersonalProfileScreen() {
         {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
           <ScrollView
             contentContainerStyle={styles.scroll}
@@ -189,6 +189,7 @@ export default function PersonalProfileScreen() {
                   autoCapitalize="words"
                   autoCorrect={false}
                   returnKeyType="next"
+                  underlineColorAndroid="transparent"
                 />
               </View>
 
@@ -217,6 +218,7 @@ export default function PersonalProfileScreen() {
                   autoCapitalize="words"
                   autoCorrect={false}
                   returnKeyType="next"
+                  underlineColorAndroid="transparent"
                 />
               </View>
 
@@ -244,6 +246,7 @@ export default function PersonalProfileScreen() {
                   }
                   keyboardType="phone-pad"
                   returnKeyType="done"
+                  underlineColorAndroid="transparent"
                 />
               </View>
             </View>

@@ -62,6 +62,7 @@ export default function SignInScreen() {
               autoCapitalize="none"
               keyboardType="email-address"
               style={[styles.input, { color: colors.text }]}
+              underlineColorAndroid="transparent"
             />
           </View>
           <PasswordInput

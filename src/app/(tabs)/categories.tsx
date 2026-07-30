@@ -174,6 +174,7 @@ export default function CategoriesScreen() {
                     value={newName}
                     onChangeText={setNewName}
                     placeholderTextColor={colors.placeholder}
+                    underlineColorAndroid="transparent"
                   />
 
                   <View style={styles.toggleRow}>

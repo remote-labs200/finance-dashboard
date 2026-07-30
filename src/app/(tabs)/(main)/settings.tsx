@@ -542,6 +542,7 @@ export default function SettingsScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              underlineColorAndroid="transparent"
             />
             <View style={styles.modalActions}>
               <Pressable onPress={closeModal} style={styles.modalCancelBtn}>
@@ -572,6 +573,7 @@ export default function SettingsScreen() {
               value={currentPassword}
               onChangeText={setCurrentPassword}
               secureTextEntry
+              underlineColorAndroid="transparent"
             />
             <TextInput
               style={[styles.modalInput, { borderColor: theme.inputBorder, backgroundColor: theme.inputBackground, color: theme.text }]}
@@ -580,6 +582,7 @@ export default function SettingsScreen() {
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
+              underlineColorAndroid="transparent"
             />
             <TextInput
               style={[styles.modalInput, { borderColor: theme.inputBorder, backgroundColor: theme.inputBackground, color: theme.text }]}
@@ -588,6 +591,7 @@ export default function SettingsScreen() {
               value={confirmNewPassword}
               onChangeText={setConfirmNewPassword}
               secureTextEntry
+              underlineColorAndroid="transparent"
             />
             <View style={styles.modalActions}>
               <Pressable onPress={closeModal} style={styles.modalCancelBtn}>
