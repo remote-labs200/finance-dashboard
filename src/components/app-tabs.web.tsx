@@ -10,6 +10,7 @@ import { Pressable, View, StyleSheet } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
+import NotificationBell from './notification-bell.web';
 
 import { useResolvedThemeName } from '@/hooks/use-theme';
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -65,6 +66,7 @@ export function CustomTabList(props: TabListProps) {
         <ThemedText type="smallBold" style={styles.brandText}>
           SmoothTax
         </ThemedText>
+        <NotificationBell />
 
         {props.children}
       </ThemedView>
