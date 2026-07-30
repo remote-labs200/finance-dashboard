@@ -2,9 +2,7 @@
 
 **Smooth income. Know your taxes. Freelancer-native.**
 
-SmoothTax is a cross-platform (iOS, Android, Web) personal finance dashboard built for freelancers and solopreneurs. It tackles three problems standard accounting tools ignore: **irregular income smoothing**, **localized quarterly tax estimation that recomputes live**, and **multi-currency by default**.
-
-Built with Expo SDK 56, React Native, TypeScript, SQLite (offline-first cache), and Supabase (cloud source of truth + auth + AI).
+Cross-platform React Native + Expo personal finance app for freelancers and solopreneurs. Tracks irregular income across multiple currencies, computes a "safe monthly pay" to smooth dry months, and provides live localized quarterly tax estimates. Features AI-powered insights, receipt OCR, mileage tracking, cash flow forecasting, client management, and seamless multi-device sync.
 
 ---
 

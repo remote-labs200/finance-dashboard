@@ -1,12 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import {
   Alert,
-  Linking,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
-  Switch,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,50 +12,51 @@ import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useSQLiteContext } from '@/db/provider';
 import { useAuthStore } from '@/stores/use-auth-store';
-import { useThemeStore, type ThemePreference } from '@/stores/use-theme-store';
 import { useTheme } from '@/hooks/use-theme';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { findTransactionsByUser } from '@/db/transaction-repo';
 
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
-];
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-type MenuItemProps = {
+interface SubMenuItem {
   icon: React.ComponentProps<typeof SymbolView>['name'];
   label: string;
-  description?: string;
+  description: string;
   onPress: () => void;
-  destructive?: boolean;
-  right?: React.ReactNode;
-};
+}
 
-function MenuItem({ icon, label, description, onPress, destructive, right }: MenuItemProps) {
+interface SectionGroup {
+  icon: React.ComponentProps<typeof SymbolView>['name'];
+  title: string;
+  items: SubMenuItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Reusable row components
+// ---------------------------------------------------------------------------
+
+function SubMenuRow({ icon, label, description, onPress }: SubMenuItem) {
   const theme = useTheme();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}>
-      <SymbolView name={icon} size={22} tintColor={destructive ? theme.danger : theme.text} />
-      <View style={styles.rowCenter}>
-        <ThemedText type="default" style={destructive ? { color: theme.danger, fontWeight: '600' } : { fontWeight: '500' }}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}>
+      <SymbolView name={icon} size={22} tintColor={theme.text} />
+      <View style={styles.rowBody}>
+        <ThemedText type="default" style={{ fontWeight: '500' }}>
           {label}
         </ThemedText>
-        {description ? (
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {description}
-          </ThemedText>
-        ) : null}
+        <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
+          {description}
+        </ThemedText>
       </View>
-      {right ?? (
-        <SymbolView
-          name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-          size={14}
-          tintColor={theme.placeholder}
-        />
-      )}
+      <SymbolView
+        name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+        size={14}
+        tintColor={theme.placeholder}
+      />
     </Pressable>
   );
 }
@@ -68,22 +66,57 @@ function SectionDivider() {
   return <View style={[styles.divider, { backgroundColor: theme.divider }]} />;
 }
 
+function SectionCard({ icon, title, items }: SectionGroup) {
+  const theme = useTheme();
+  return (
+    <View style={styles.section}>
+      {/* Section header with icon */}
+      <View style={styles.sectionHeader}>
+        <SymbolView name={icon} size={18} tintColor={theme.primary} />
+        <ThemedText type="callout" style={styles.sectionTitle}>
+          {title}
+        </ThemedText>
+      </View>
+
+      {/* Card body */}
+      <View
+        style={[
+          styles.card,
+          { borderColor: theme.cardBorder, backgroundColor: theme.card },
+        ]}>
+        {items.map((item, idx) => (
+          <View key={item.label}>
+            {idx > 0 && <SectionDivider />}
+            <SubMenuRow {...item} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
+
 export default function AccountScreen() {
-  const db = useSQLiteContext();
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
   const router = useRouter();
   const theme = useTheme();
-  const themePreference = useThemeStore((s) => s.preference);
-  const setThemePreference = useThemeStore((s) => s.setPreference);
 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  // --- Handlers (currently no-op stubs — routes will be wired later) ------
+
+  const handleProfile = useCallback(
+    () => router.push('/(tabs)/(main)/settings'),
+    [router],
+  );
 
   const handleSignOut = useCallback(() => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+    Alert.alert('Log Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Sign Out',
+        text: 'Log Out',
         style: 'destructive',
         onPress: async () => {
           await signOut();
@@ -93,110 +126,196 @@ export default function AccountScreen() {
     ]);
   }, [signOut, router]);
 
-  const handleExportData = useCallback(async () => {
-    if (!user) return;
-    try {
-      const txns = await findTransactionsByUser(db, user.id, { limit: 10000 });
-      const header = 'Date,Amount,Note,Category,Account,Currency\n';
-      const rows = txns
-        .map((t) =>
-          [
-            t.date,
-            (t.amountCents / 100).toFixed(2),
-            `"${(t.note ?? '').replace(/"/g, '""')}"`,
-            `"${(t.categoryName ?? '').replace(/"/g, '""')}"`,
-            `"${(t.accountName ?? '').replace(/"/g, '""')}"`,
-            t.currencyCode,
-          ].join(',')
-        )
-        .join('\n');
-      const csv = header + rows;
-      await Share.share({
-        message: csv,
-        title: `SmoothTax Export - ${new Date().toISOString().slice(0, 10)}.csv`,
-      });
-    } catch (e: any) {
-      if (e?.message === 'User did not share') return;
-      Alert.alert('Export Error', e.message ?? 'Failed to export data.');
-    }
-  }, [db, user]);
+  // --- Section data -------------------------------------------------------
 
-  const handleHelpCenter = useCallback(() => {
-    Alert.alert(
-      'Help Center',
-      'Need assistance with SmoothTax? Here are your options:',
-      [
+  const sections: SectionGroup[] = [
+    {
+      icon: { ios: 'person.circle', android: 'person', web: 'person' },
+      title: 'Account & Freelancer Profile',
+      items: [
         {
-          text: 'FAQs',
-          onPress: () =>
-            Alert.alert(
-              'Frequently Asked Questions',
-              'Q: How does tax estimation work?\nA: SmoothTax uses your marginal tax rates and income data to estimate quarterly tax obligations.\n\nQ: Is my data synced to the cloud?\nA: Yes, when Supabase is configured, your data syncs automatically.\n\nQ: How do I export my data?\nA: Go to Settings via the Account menu and tap "Export Data (CSV)".'
-            ),
+          icon: { ios: 'person.text.rectangle', android: 'badge', web: 'badge' },
+          label: 'Personal Profile',
+          description: 'Legal name, email, business phone, and avatar.',
+          onPress: handleProfile,
         },
         {
-          text: 'Contact Support',
-          onPress: () => {
-            Linking.openURL('mailto:support@smoothtax.app').catch(() =>
-              Alert.alert('Error', 'Could not open email client.')
-            );
-          },
+          icon: { ios: 'building.columns', android: 'business', web: 'business' },
+          label: 'Business Information',
+          description: 'Legal business name, structure, and registration numbers.',
+          onPress: handleProfile,
         },
-        { text: 'Close', style: 'cancel' },
-      ]
-    );
-  }, []);
-
-  const handleFeedback = useCallback(() => {
-    Alert.alert('Give Feedback', 'How would you like to share your feedback?', [
-      {
-        text: 'Report a Bug',
-        onPress: () => {
-          Linking.openURL('mailto:bugs@smoothtax.app?subject=Bug Report').catch(() =>
-            Alert.alert('Error', 'Could not open email client.')
-          );
-        },
-      },
-      {
-        text: 'Suggest a Feature',
-        onPress: () => {
-          Linking.openURL('mailto:feedback@smoothtax.app?subject=Feature Request').catch(() =>
-            Alert.alert('Error', 'Could not open email client.')
-          );
-        },
-      },
-      {
-        text: 'Rate the App',
-        onPress: () => {
-          Alert.alert('Rate SmoothTax', 'Your ratings help us improve!');
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, []);
-
-  const handlePaymentMethods = useCallback(() => {
-    Alert.alert(
-      'Payment Methods',
-      'You have no saved payment methods yet.\n\nUpgrade to Pro and add a credit card or PayPal to manage your subscription.',
-      [{ text: 'Got it', style: 'default' }]
-    );
-  }, []);
-
-  const handleManageSubscription = useCallback(() => {
-    Alert.alert(
-      'Subscription & Billing',
-      'You\'re currently on the Free Plan.\n\n\u2022 Unlimited transactions\n\u2022 Up to 5 accounts\n\u2022 Basic tax estimates\n\nUpgrade to Pro for $4.99/month to unlock AI insights, receipt OCR, unlimited accounts, and priority cloud sync.',
-      [
-        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Upgrade to Pro',
-          onPress: () =>
-            Alert.alert('Coming Soon', 'Pro subscription will be available in a future update.'),
+          icon: { ios: 'doc.text.magnifyingglass', android: 'receipt_long', web: 'receipt_long' },
+          label: 'Tax Profile',
+          description: 'Local tax residency jurisdiction selection.',
+          onPress: handleProfile,
         },
-      ]
-    );
-  }, []);
+        {
+          icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' },
+          label: 'Accounting Year',
+          description: 'Custom financial year start date settings.',
+          onPress: handleProfile,
+        },
+      ],
+    },
+    {
+      icon: { ios: 'dollarsign.circle', android: 'attach_money', web: 'attach_money' },
+      title: 'Financial Core & Currencies',
+      items: [
+        {
+          icon: { ios: 'dollarsign.circle.fill', android: 'payments', web: 'payments' },
+          label: 'Base Currency',
+          description: 'Main accounting currency for dashboard calculations.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'coloncurrencysign.circle', android: 'currency_exchange', web: 'currency_exchange' },
+          label: 'Secondary Currencies',
+          description: 'Toggle active currencies for irregular foreign incoming revenue.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'arrow.up.arrow.down', android: 'swap_vert', web: 'swap_vert' },
+          label: 'Live Exchange Rates',
+          description: 'Manual override rates vs automatic internet API sync.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'chart.pie', android: 'donut_small', web: 'donut_small' },
+          label: 'Safe Monthly Pay Algorithm',
+          description: 'Custom volatility buffers and cash reserve targets.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'slider.horizontal.3', android: 'tune', web: 'tune' },
+          label: 'Tax Estimate Calibration',
+          description: 'Localized income brackets and self-employment tax rate manual adjusters.',
+          onPress: handleProfile,
+        },
+      ],
+    },
+    {
+      icon: { ios: 'arrow.triangle.2.circlepath', android: 'sync', web: 'sync' },
+      title: 'Integrations & Sync',
+      items: [
+        {
+          icon: { ios: 'building.2', android: 'account_balance', web: 'account_balance' },
+          label: 'Bank Connections',
+          description: 'Bank data feed sync aggregators using secure Open Banking APIs.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'icloud', android: 'cloud_sync', web: 'cloud_sync' },
+          label: 'Multi-Device Sync',
+          description: 'Expo cloud synchronization engine configurations.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'doc.text.fill', android: 'description', web: 'description' },
+          label: 'Invoicing Integrations',
+          description: 'Linked third-party payment gateways for client invoicing.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'square.and.arrow.up', android: 'share', web: 'share' },
+          label: 'Export Ledger',
+          description: 'Raw data downloads in CSV, XLSX, or tax-ready PDF formats.',
+          onPress: handleProfile,
+        },
+      ],
+    },
+    {
+      icon: { ios: 'gearshape.2', android: 'settings', web: 'settings' },
+      title: 'Automation & Tools',
+      items: [
+        {
+          icon: { ios: 'doc.viewfinder', android: 'document_scanner', web: 'document_scanner' },
+          label: 'Receipt OCR Settings',
+          description: 'Auto-categorization toggles and storage compression levels.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' },
+          label: 'AI Financial Insights',
+          description: 'Frequency toggles for automated cash-flow anomaly alerts.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'car', android: 'directions_car', web: 'directions_car' },
+          label: 'Mileage Tracker Settings',
+          description: 'GPS background permissions, vehicle profiles, and rate per mile tracking.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' },
+          label: 'Cash Flow Forecasting',
+          description: 'Time-horizon parameters spanning 3, 6, or 12 months ahead.',
+          onPress: handleProfile,
+        },
+      ],
+    },
+    {
+      icon: { ios: 'lock.shield', android: 'security', web: 'security' },
+      title: 'Privacy & Security',
+      items: [
+        {
+          icon: { ios: 'faceid', android: 'fingerprint', web: 'fingerprint' },
+          label: 'Biometric Lock',
+          description: 'Face ID or Touch ID security passcodes.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'checkmark.shield', android: 'verified_user', web: 'verified_user' },
+          label: 'Two-Factor Auth',
+          description: 'Secure secondary token authentication configuration panels.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'key.fill', android: 'key', web: 'key' },
+          label: 'Data Encryption Key',
+          description: 'Self-custody or cloud-managed data security keys.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'clock.badge.checkmark', android: 'history', web: 'history' },
+          label: 'Security Logs',
+          description: 'Recent security activity and authentication history.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'laptopcomputer.and.iphone', android: 'devices_other', web: 'devices_other' },
+          label: 'Connected Devices',
+          description: 'IP addresses, locations, device type, and model info.',
+          onPress: handleProfile,
+        },
+      ],
+    },
+    {
+      icon: { ios: 'info.circle', android: 'info', web: 'info' },
+      title: 'Legal, Support & Version',
+      items: [
+        {
+          icon: { ios: 'questionmark.circle', android: 'help', web: 'help' },
+          label: 'Help & Tax FAQs',
+          description: 'Freelancer specific tax-deduction guidelines documentation.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'doc.text', android: 'article', web: 'article' },
+          label: 'Terms & Privacy',
+          description: 'Freelancer data privacy terms and security compliance statements.',
+          onPress: handleProfile,
+        },
+        {
+          icon: { ios: 'iphone', android: 'phone_android', web: 'phone_android' },
+          label: 'App Version',
+          description: 'Active app release tracking numbers.',
+          onPress: handleProfile,
+        },
+      ],
+    },
+  ];
 
   const userInitial = (user?.email ?? '?').charAt(0).toUpperCase();
 
@@ -204,13 +323,24 @@ export default function AccountScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          {/* Header */}
+          {/* ── Header ───────────────────────────────────────────── */}
+
           <ThemedText type="title">Account</ThemedText>
 
-          {/* Profile Card */}
-          <View style={[styles.profileCard, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+          {/* ── Profile card ─────────────────────────────────────── */}
+
+          <View
+            style={[
+              styles.profileCard,
+              { borderColor: theme.cardBorder, backgroundColor: theme.card },
+            ]}>
             <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-              <ThemedText style={{ color: theme.primaryText, fontSize: 24, fontWeight: '700' }}>
+              <ThemedText
+                style={{
+                  color: theme.primaryText,
+                  fontSize: 24,
+                  fontWeight: '700',
+                }}>
                 {userInitial}
               </ThemedText>
             </View>
@@ -224,165 +354,29 @@ export default function AccountScreen() {
             </View>
           </View>
 
-          {/* Section: Settings & Preferences */}
-          <View style={styles.section}>
-            <ThemedText type="callout" style={styles.sectionTitle}>
-              Settings &amp; Preferences
-            </ThemedText>
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              <MenuItem
-                icon={{ ios: 'gearshape', android: 'settings', web: 'settings' }}
-                label="All Settings"
-                description="App configuration, accounts, categories, and more"
-                onPress={() => router.push('/(tabs)/(main)/settings')}
-              />
+          {/* ── Section cards ────────────────────────────────────── */}
 
-              <SectionDivider />
+          {sections.map((section) => (
+            <SectionCard key={section.title} {...section} />
+          ))}
 
-              {/* Theme Picker (inline) */}
-              <View style={styles.row}>
-                <SymbolView name={{ ios: 'paintpalette', android: 'palette', web: 'palette' }} size={22} tintColor={theme.text} />
-                <View style={styles.rowCenter}>
-                  <ThemedText type="default" style={{ fontWeight: '500' }}>
-                    Appearance
-                  </ThemedText>
-                </View>
-              </View>
-              <View style={styles.themePicker}>
-                {THEME_OPTIONS.map((opt) => (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => setThemePreference(opt.value)}
-                    style={[
-                      styles.themeOption,
-                      { borderColor: theme.inputBorder, backgroundColor: theme.inputBackground },
-                      themePreference === opt.value && {
-                        borderColor: theme.primary,
-                        backgroundColor: `${theme.primary}15`,
-                      },
-                    ]}>
-                    <ThemedText
-                      type="small"
-                      style={{
-                        color: themePreference === opt.value ? theme.primary : theme.text,
-                        fontWeight: themePreference === opt.value ? '700' : '500',
-                      }}>
-                      {opt.label}
-                    </ThemedText>
-                  </Pressable>
-                ))}
-              </View>
+          {/* ── Log Out ──────────────────────────────────────────── */}
 
-              <SectionDivider />
-
-              <MenuItem
-                icon={{ ios: 'bell', android: 'notifications', web: 'notifications' }}
-                label="Notifications"
-                description="Push alerts, payment reminders, and tax deadlines"
-                right={
-                  <Switch
-                    value={notificationsEnabled}
-                    onValueChange={setNotificationsEnabled}
-                    trackColor={{ false: theme.inputBorder, true: theme.primary }}
-                  />
-                }
-                onPress={() => setNotificationsEnabled((v) => !v)}
-              />
-
-              <SectionDivider />
-
-              <MenuItem
-                icon={{ ios: 'cloud', android: 'cloud', web: 'cloud' }}
-                label="Cloud Sync"
-                description="Manage sync status and conflict resolution"
-                onPress={() => router.push('/(tabs)/cloud-sync')}
-              />
-
-              <SectionDivider />
-
-              <MenuItem
-                icon={{ ios: 'dollarsign.circle', android: 'attach_money', web: 'attach_money' }}
-                label="Default Currency"
-                description="Set your preferred currency for transactions"
-                onPress={() => router.push('/(tabs)/currency-settings')}
-              />
-            </View>
-          </View>
-
-          {/* Section: Subscription & Billing */}
-          <View style={styles.section}>
-            <ThemedText type="callout" style={styles.sectionTitle}>
-              Subscription &amp; Billing
-            </ThemedText>
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              <MenuItem
-                icon={{ ios: 'crown', android: 'star', web: 'star' }}
-                label="Subscription Plan"
-                description="Free Plan \u2014 Upgrade to unlock premium features"
-                onPress={handleManageSubscription}
-              />
-
-              <SectionDivider />
-
-              <MenuItem
-                icon={{ ios: 'creditcard', android: 'credit_card', web: 'credit_card' }}
-                label="Payment Methods"
-                description="Manage saved cards and billing details"
-                onPress={handlePaymentMethods}
-              />
-            </View>
-          </View>
-
-          {/* Section: Support */}
-          <View style={styles.section}>
-            <ThemedText type="callout" style={styles.sectionTitle}>
-              Support
-            </ThemedText>
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              <MenuItem
-                icon={{ ios: 'questionmark.circle', android: 'help', web: 'help' }}
-                label="Help Center"
-                description="FAQs, customer support, and troubleshooting"
-                onPress={handleHelpCenter}
-              />
-
-              <SectionDivider />
-
-              <MenuItem
-                icon={{ ios: 'envelope', android: 'email', web: 'email' }}
-                label="Give Feedback"
-                description="Report bugs, suggest features, or rate the app"
-                onPress={handleFeedback}
-              />
-            </View>
-          </View>
-
-          {/* Section: Data */}
-          <View style={styles.section}>
-            <ThemedText type="callout" style={styles.sectionTitle}>
-              Data
-            </ThemedText>
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              <MenuItem
-                icon={{ ios: 'square.and.arrow.up', android: 'share', web: 'share' }}
-                label="Export Data"
-                description="Download all transactions as CSV"
-                onPress={handleExportData}
-              />
-            </View>
-          </View>
-
-          {/* Sign Out */}
           <Pressable
             onPress={handleSignOut}
             style={[styles.signOutBtn, { borderColor: theme.danger }]}>
-            <SymbolView name={{ ios: 'arrow.backward.circle', android: 'logout', web: 'logout' }} size={20} tintColor={theme.danger} />
+            <SymbolView
+              name={{ ios: 'arrow.backward.circle', android: 'logout', web: 'logout' }}
+              size={20}
+              tintColor={theme.danger}
+            />
             <ThemedText type="default" style={{ color: theme.danger, fontWeight: '600' }}>
-              Sign Out
+              Log Out
             </ThemedText>
           </Pressable>
 
-          {/* App Info */}
+          {/* ── Footer ───────────────────────────────────────────── */}
+
           <View style={styles.appInfo}>
             <ThemedText type="small" themeColor="textSecondary">
               SmoothTax v1.0.0
@@ -399,6 +393,10 @@ export default function AccountScreen() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
@@ -410,7 +408,8 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: Spacing.three,
   },
-  // Profile card
+
+  /* Profile ------------------------------------------------------------- */
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -430,46 +429,44 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  // Section
+
+  /* Section ------------------------------------------------------------- */
   section: {
     gap: Spacing.one,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingLeft: Spacing.half,
   },
   sectionTitle: {
     fontWeight: '600',
   },
   card: {
-    padding: Spacing.three,
+    paddingVertical: Spacing.half,
+    paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
     borderWidth: 1,
   },
+
+  /* Row ----------------------------------------------------------------- */
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.two,
     gap: Spacing.three,
   },
-  rowCenter: {
+  rowBody: {
     flex: 1,
     gap: 1,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: 22 + Spacing.three, // aligns with text after icon
+    marginLeft: 22 + Spacing.three,
   },
-  // Theme picker
-  themePicker: {
-    flexDirection: 'row',
-    gap: Spacing.one,
-    paddingBottom: Spacing.two,
-    paddingLeft: 22 + Spacing.three, // aligns with content after icon
-  },
-  themeOption: {
-    flex: 1,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
+
+  /* Sign Out ------------------------------------------------------------ */
   signOutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -479,6 +476,8 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     borderWidth: 1,
   },
+
+  /* Footer -------------------------------------------------------------- */
   appInfo: {
     alignItems: 'center',
     gap: Spacing.half,

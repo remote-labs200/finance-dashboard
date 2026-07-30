@@ -2,6 +2,7 @@
   "name": "smooth-tax",
   "main": "index.js",
   "version": "1.0.0",
+  "description": "Cross-platform React Native + Expo personal finance app for freelancers and solopreneurs. Tracks irregular income, computes safe monthly pay, live tax estimates, AI insights, receipt OCR, mileage, forecasting, client management, multi-device sync.",
   "dependencies": {
     "@expo/ui": "~56.0.24",
     "@expo/vector-icons": "^15.0.2",
