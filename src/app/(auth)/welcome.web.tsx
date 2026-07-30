@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { SplashLogo } from '@/components/splash-logo';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/use-theme';
 
@@ -18,12 +19,7 @@ export default function WelcomeScreen() {
         resizeMode="cover">
         <SafeAreaView style={styles.waveSafeArea}>
           <View style={styles.waveContent}>
-            <ThemedText type="title" style={styles.waveTitle}>
-              SmoothTax
-            </ThemedText>
-            <ThemedText type="callout" style={styles.waveTagline}>
-              For freelancers who want to stay ahead of their money
-            </ThemedText>
+            <SplashLogo compact wordmarkColor="#ffffff" taglineColor="rgba(255,255,255,0.8)" />
           </View>
         </SafeAreaView>
       </ImageBackground>
@@ -77,8 +73,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.four,
   },
   waveContent: { gap: Spacing.one },
-  waveTitle: { color: '#ffffff', lineHeight: 52 },
-  waveTagline: { color: 'rgba(255,255,255,0.8)', marginTop: Spacing.one },
   card: {
     flex: 0.35,
     borderTopLeftRadius: 24,

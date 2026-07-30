@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
+import { SplashLogo } from '@/components/splash-logo';
 import { Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/use-theme';
 
@@ -19,13 +20,7 @@ export default function WelcomeScreen() {
         <SafeAreaView style={styles.safeArea}>
           {/* Top 65% — text content overlaid on wave */}
           <View style={styles.topSection}>
-            <ThemedText type="title" style={styles.title}>
-              SmoothTax
-            </ThemedText>
-
-            <ThemedText type="callout" style={[styles.tagline, { color: 'rgba(255,255,255,0.8)' }]}>
-              For freelancers who want to stay ahead of their money
-            </ThemedText>
+            <SplashLogo compact wordmarkColor="#ffffff" taglineColor="rgba(255,255,255,0.8)" />
 
             <View style={styles.featuresContainer}>
               <View style={styles.featureBadge}>
@@ -107,16 +102,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.six,
-  },
-  title: {
-    fontSize: 42,
-    lineHeight: 52,
-    color: '#ffffff',
-  },
-  tagline: {
-    marginTop: Spacing.three,
-    lineHeight: 24,
-    fontSize: 18,
   },
   featuresContainer: {
     marginTop: Spacing.six,
