@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   keyboardAvoid: { flex: 1 },
   scroll: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+    paddingTop: Spacing.five,
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     width: '100%',
