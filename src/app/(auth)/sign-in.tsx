@@ -20,6 +20,7 @@ import { PasswordInput } from '@/components/password-input';
 import { useSQLiteContext } from '@/db/provider';
 import { Spacing } from '@/constants/theme';
 import { useAuthStore } from '@/stores/use-auth-store';
+import { supabase } from '@/lib/supabase';
 import { useThemeColors } from '@/hooks/use-theme';
 
 const bgImage = require('../../../assets/images/signin.png');
@@ -41,6 +42,66 @@ export default function SignInScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = () => {
+    if (!supabase) {
+      Alert.alert('Not Available', 'Supabase is not configured. Contact support to reset your password.');
+      return;
+    }
+    const sb = supabase;
+    Alert.prompt?.(
+      'Reset Password',
+      'Enter your email address and we\'ll send you a password reset link.',
+      async (input) => {
+        if (!input?.trim()) return;
+        setLoading(true);
+        try {
+          const { error } = await sb.auth.resetPasswordForEmail(input.trim(), {
+            redirectTo: 'smooth-tax://(auth)/sign-in',
+          });
+          if (error) throw new Error(error.message);
+          Alert.alert('Check Your Email', 'If an account exists with that email, you\'ll receive a password reset link shortly.');
+        } catch (e: any) {
+          Alert.alert('Error', e.message ?? 'Failed to send reset email.');
+        } finally {
+          setLoading(false);
+        }
+      },
+      'plain-text',
+      '',
+      'Send Reset Link'
+    ) ?? (
+      // Fallback for Android / web where Alert.prompt doesn't exist
+      Alert.alert(
+        'Reset Password',
+        'Enter your email address in the field below.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Send Reset Link',
+            onPress: async () => {
+              if (!email.trim()) {
+                Alert.alert('Error', 'Please enter your email address in the email field above first.');
+                return;
+              }
+              setLoading(true);
+              try {
+                const { error } = await sb.auth.resetPasswordForEmail(email.trim(), {
+                  redirectTo: 'smooth-tax://(auth)/sign-in',
+                });
+                if (error) throw new Error(error.message);
+                Alert.alert('Check Your Email', 'If an account exists with that email, you\'ll receive a password reset link shortly.');
+              } catch (e: any) {
+                Alert.alert('Error', e.message ?? 'Failed to send reset email.');
+              } finally {
+                setLoading(false);
+              }
+            },
+          },
+        ]
+      )
+    );
   };
 
   return (
@@ -108,6 +169,13 @@ export default function SignInScreen() {
                   ]}>
                   <ThemedText type="smallBold" style={{ color: '#ffffff' }}>
                     {loading ? 'Signing In...' : 'Sign In'}
+                  </ThemedText>
+                </Pressable>
+
+                {/* Forgot Password */}
+                <Pressable onPress={handleForgotPassword} style={styles.forgotPassword}>
+                  <ThemedText type="link" style={styles.forgotText}>
+                    Forgot Password?
                   </ThemedText>
                 </Pressable>
 
@@ -196,6 +264,13 @@ const styles = StyleSheet.create({
   },
   linkButton: {
     textAlign: 'center',
+  },
+  forgotPassword: {
+    alignSelf: 'center',
+    marginTop: Spacing.half,
+  },
+  forgotText: {
+    fontSize: 14,
   },
   footer: {
     textAlign: 'center',

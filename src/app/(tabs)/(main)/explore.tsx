@@ -6,6 +6,7 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -30,6 +31,7 @@ export default function TransactionsScreen() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadTransactions = useCallback(async () => {
     if (!user) return;
@@ -70,9 +72,22 @@ export default function TransactionsScreen() {
   );
 
   const filtered = transactions.filter((txn) => {
-    if (filter === 'income') return txn.amountCents > 0;
-    if (filter === 'expense') return txn.amountCents < 0;
-    return true;
+    const matchesType =
+      filter === 'all' ? true :
+      filter === 'income' ? txn.amountCents > 0 :
+      txn.amountCents < 0;
+
+    if (!matchesType) return false;
+
+    if (!searchQuery.trim()) return true;
+
+    const q = searchQuery.toLowerCase();
+    return (
+      (txn.note ?? '').toLowerCase().includes(q) ||
+      (txn.categoryName ?? '').toLowerCase().includes(q) ||
+      (txn.accountName ?? '').toLowerCase().includes(q) ||
+      txn.date.includes(q)
+    );
   });
 
   const renderItem = useCallback(
@@ -113,6 +128,33 @@ export default function TransactionsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <ThemedText type="title">Transactions</ThemedText>
+          {/* Search bar */}
+          <View style={[styles.searchContainer, { borderColor: colors.divider, backgroundColor: colors.inputBackground }]}>
+            <SymbolView
+              name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
+              size={16}
+              tintColor={colors.placeholder}
+            />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Search transactions..."
+              placeholderTextColor={colors.placeholder}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <SymbolView
+                  name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }}
+                  size={16}
+                  tintColor={colors.placeholder}
+                />
+              </Pressable>
+            )}
+          </View>
           <View style={styles.filters}>
             {(['all', 'income', 'expense'] as const).map((f) => (
               <Pressable
@@ -181,6 +223,19 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
   },
   filterButtonActive: {},
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    gap: Spacing.one,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Spacing.one + 2,
+    fontSize: 15,
+  },
   list: {
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,

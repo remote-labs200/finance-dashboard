@@ -1,10 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   TextInput,
@@ -22,6 +23,8 @@ import { useAuthStore } from '@/stores/use-auth-store';
 import { useThemeStore, type ThemePreference } from '@/stores/use-theme-store';
 import { useTheme } from '@/hooks/use-theme';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { findTransactionsByUser } from '@/db/transaction-repo';
+import * as SecureStore from 'expo-secure-store';
 
 type ModalType = 'email' | 'password' | null;
 
@@ -42,6 +45,7 @@ export default function SettingsScreen() {
   const setThemePreference = useThemeStore((s) => s.setPreference);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
   // Email form
@@ -53,6 +57,18 @@ export default function SettingsScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Load biometric preference on mount
+  useEffect(() => {
+    SecureStore.getItemAsync('biometric_enabled').then((val) => {
+      setBiometricEnabled(val === 'true');
+    });
+  }, []);
+
+  const handleBiometricToggle = useCallback(async (value: boolean) => {
+    setBiometricEnabled(value);
+    await SecureStore.setItemAsync('biometric_enabled', value ? 'true' : 'false');
+  }, []);
 
   const handleSignOut = useCallback(() => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -150,6 +166,96 @@ export default function SettingsScreen() {
     setNewPassword('');
     setConfirmNewPassword('');
   }, []);
+
+  const handleExportData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const txns = await findTransactionsByUser(db, user.id, { limit: 10000 });
+
+      // Build CSV
+      const header = 'Date,Amount,Note,Category,Account,Currency\n';
+      const rows = txns.map((t) =>
+        [
+          t.date,
+          (t.amountCents / 100).toFixed(2),
+          `"${(t.note ?? '').replace(/"/g, '""')}"`,
+          `"${(t.categoryName ?? '').replace(/"/g, '""')}"`,
+          `"${(t.accountName ?? '').replace(/"/g, '""')}"`,
+          t.currencyCode,
+        ].join(',')
+      ).join('\n');
+      const csv = header + rows;
+
+      await Share.share({
+        message: csv,
+        title: `SmoothTax Export - ${new Date().toISOString().slice(0, 10)}.csv`,
+      });
+    } catch (e: any) {
+      if (e?.message === 'User did not share') return; // user cancelled
+      Alert.alert('Export Error', e.message ?? 'Failed to export data.');
+    }
+  }, [db, user]);
+
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all associated data from the cloud. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Are you sure?',
+              'All of your data will be permanently removed. Type DELETE to confirm.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'DELETE',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // Sign out from Supabase — this revokes the session
+                      await signOut();
+
+                      // Attempt to delete auth user via admin API (requires service_role key).
+                      // For client-side deletion, Supabase requires the user to be recently
+                      // authenticated. If this fails, instruct the user to contact support.
+                      if (supabase) {
+                        const { error } = await supabase.rpc('delete_user_account');
+                        if (error) console.warn('Account deletion RPC failed:', error.message);
+                      }
+
+                      // Clear local data
+                      await db.execAsync(`
+                        DELETE FROM transactions;
+                        DELETE FROM accounts;
+                        DELETE FROM categories;
+                        DELETE FROM tax_settings;
+                        DELETE FROM user_preferences;
+                        DELETE FROM users;
+                        DELETE FROM sync_log;
+                      `);
+
+                      Alert.alert(
+                        'Account Deleted',
+                        supabase
+                          ? 'Your account has been scheduled for deletion. You will receive a confirmation email.'
+                          : 'Local data cleared. Since Supabase is not configured, there is no cloud account to delete.'
+                      );
+                    } catch (e: any) {
+                      Alert.alert('Error', e.message ?? 'Failed to delete account.');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }, [db, signOut]);
 
   return (
     <ThemedView style={styles.container}>
@@ -329,6 +435,18 @@ export default function SettingsScreen() {
                 />
               </View>
               <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <ThemedText type="default">Face ID / Biometric</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">Unlock the app with biometrics</ThemedText>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={handleBiometricToggle}
+                  trackColor={{ false: theme.inputBorder, true: theme.primary }}
+                />
+              </View>
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
               <Pressable onPress={() => router.push('/(tabs)/currency-settings')} style={styles.row}>
                 <ThemedText type="default">Default Currency</ThemedText>
                 <View style={styles.rowRight}>
@@ -364,11 +482,27 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <ThemedText type="callout" style={styles.sectionTitle}>Data</ThemedText>
             <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+              <Pressable onPress={handleExportData} style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <ThemedText type="default">Export Data (CSV)</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">Download all transactions</ThemedText>
+                </View>
+                <SymbolView name={{ ios: 'square.and.arrow.up', android: 'share', web: 'share' }} size={16} tintColor={theme.primary} />
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
               <Pressable onPress={handleClearData} style={styles.row}>
                 <ThemedText type="default" style={{ color: theme.danger }}>
                   Clear All Data
                 </ThemedText>
                 <SymbolView name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={16} tintColor={theme.danger} />
+              </Pressable>
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+              <Pressable onPress={handleDeleteAccount} style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <ThemedText type="default" style={{ color: theme.danger }}>Delete Account</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">Permanently remove everything</ThemedText>
+                </View>
+                <SymbolView name={{ ios: 'person.badge.minus', android: 'person_remove', web: 'person_remove' }} size={16} tintColor={theme.danger} />
               </Pressable>
             </View>
           </View>

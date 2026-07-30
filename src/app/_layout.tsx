@@ -13,6 +13,11 @@ import {
   setupNotificationChannels,
   requestNotificationPermission,
 } from '@/lib/notification-service';
+import { ErrorBoundary } from '@/components/error-boundary';
+import { OfflineIndicator } from '@/components/offline-indicator';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useBiometricAuth } from '@/hooks/use-biometric';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -34,7 +39,12 @@ function RootLayoutInner() {
   const router = useRouter();
   const prevUser = useRef(user);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const resolvedTheme = useResolvedThemeName();
+
+  const { isAvailable: bioAvailable, isAuthenticated: bioAuthed, authenticate: bioAuth } = useBiometricAuth(biometricEnabled);
+
+  const unlocked = !bioAvailable || !biometricEnabled || bioAuthed || !user;
 
   useEffect(() => {
     let mounted = true;
@@ -64,6 +74,20 @@ function RootLayoutInner() {
     return () => { mounted = false; };
   }, [user]);
 
+  // Check if biometric is preferred by user
+  useEffect(() => {
+    if (!user) return;
+    SecureStore.getItemAsync('biometric_enabled').then((val) => {
+      setBiometricEnabled(val === 'true');
+    });
+  }, [user]);
+
+  // Auto-trigger biometric auth when user is signed in and biometric is enabled
+  useEffect(() => {
+    if (!user || !biometricEnabled || !bioAvailable || bioAuthed) return;
+    bioAuth();
+  }, [user, biometricEnabled, bioAvailable, bioAuthed, bioAuth]);
+
   useEffect(() => {
     if (prevUser.current === user) return;
     prevUser.current = user;
@@ -85,19 +109,37 @@ function RootLayoutInner() {
     }
   }, [user, onboardingDone, router]);
 
+  if (!unlocked) {
+    return (
+      <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+        <ThemedText type="title">SmoothTax</ThemedText>
+        <ThemedText type="callout" themeColor="textSecondary" style={{ marginTop: 12 }}>
+          Authenticate to unlock the app
+        </ThemedText>
+        <StatusBar
+          barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[resolvedTheme].background}
+        />
+      </ThemedView>
+    );
+  }
+
   return (
-    <ThemeProvider value={resolvedTheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <StatusBar
-        barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
-        backgroundColor={Colors[resolvedTheme].background}
-      />
-      <Stack screenOptions={{ headerShown: false }}>
-        {user ? (
-          <Stack.Screen name="(tabs)" />
-        ) : (
-          <Stack.Screen name="(auth)" />
-        )}
-      </Stack>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider value={resolvedTheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <StatusBar
+          barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[resolvedTheme].background}
+        />
+        {user && <OfflineIndicator />}
+        <Stack screenOptions={{ headerShown: false }}>
+          {user ? (
+            <Stack.Screen name="(tabs)" />
+          ) : (
+            <Stack.Screen name="(auth)" />
+          )}
+        </Stack>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
