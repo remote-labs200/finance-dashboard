@@ -101,6 +101,7 @@ function ThemeCard({
 // ── Screen ───────────────────────────────────────────────────────────
 
 export default function AppThemeScreen() {
+  const router = useRouter();
   const preference = useThemeStore((s) => s.preference);
   const setPreference = useThemeStore((s) => s.setPreference);
   const hapticsEnabled = useUiPrefs((s) => s.hapticsEnabled);
@@ -127,7 +128,7 @@ export default function AppThemeScreen() {
           {/* ── Header ── */}
           <View style={styles.header}>
             <Pressable
-              onPress={() => useRouter().back()}
+              onPress={() => router.back()}
               style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
               <ThemedText type="default" style={{ color: colors.primary, fontWeight: '600' }}>
                 {'\u2190 Back'}
