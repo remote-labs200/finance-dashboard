@@ -12,6 +12,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import NotificationBell from '@/components/notification-bell';
 import { useSQLiteContext } from '@/db/provider';
 import { useThemeColors } from '@/hooks/use-theme';
 import { useAuthStore } from '@/stores/use-auth-store';
@@ -118,7 +119,10 @@ export default function DashboardScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
             <View style={styles.headerSection}>
-              <ThemedText type="title">Dashboard</ThemedText>
+              <View style={styles.headerRow}>
+                <ThemedText type="title">Dashboard</ThemedText>
+                <NotificationBell />
+              </View>
               <ThemedText type="small" themeColor="textSecondary">{monthName}</ThemedText>
 
               {/* Hero cards */}
@@ -340,6 +344,12 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   scroll: {
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
