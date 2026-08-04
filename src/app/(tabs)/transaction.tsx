@@ -23,9 +23,10 @@ import {
   findTransactionsByUser,
   updateTransaction,
 } from '@/db/transaction-repo';
-import { Account, Category } from '@/db/schema';
+import { Account, Category, Client } from '@/db/schema';
 import { findAccountsByUser } from '@/db/account-repo';
 import { findCategoriesByUser } from '@/db/category-repo';
+import { findClientsByUser } from '@/db/client-repo';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { parseCurrencyInput } from '@/lib/format';
 
@@ -49,19 +50,23 @@ export default function TransactionScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientId, setClientId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let mounted = true;
     (async () => {
       try {
-        const [accs, cats] = await Promise.all([
+        const [accs, cats, clis] = await Promise.all([
           findAccountsByUser(db, user.id),
           findCategoriesByUser(db, user.id),
+          findClientsByUser(db, user.id),
         ]);
         if (!mounted) return;
         setAccounts(accs);
         setCategories(cats);
+        setClients(clis);
       } catch (e: unknown) {
         if (e instanceof Error && e.message.includes('closed')) return;
         console.warn('load form data error:', e);
@@ -82,6 +87,7 @@ export default function TransactionScreen() {
           setCurrencyCode(txn.currencyCode);
           setAccountId(txn.accountId);
           setCategoryId(txn.categoryId);
+          setClientId(txn.clientId ?? null);
         }
       })();
     }
@@ -104,6 +110,7 @@ export default function TransactionScreen() {
         currencyCode,
         accountId: accountId || undefined,
         categoryId: categoryId || undefined,
+        clientId: clientId || undefined,
       });
     } else {
       await createTransaction(db, {
@@ -112,13 +119,14 @@ export default function TransactionScreen() {
         currencyCode,
         accountId: accountId || '',
         categoryId: categoryId || '',
+        clientId: clientId || undefined,
         note: note || undefined,
         date,
       });
     }
 
     router.back();
-  }, [db, user, id, isEditing, amount, note, date, isIncome, currencyCode, accountId, categoryId, router]);
+  }, [db, user, id, isEditing, amount, note, date, isIncome, currencyCode, accountId, categoryId, clientId, router]);
 
   const filteredCategories = categories.filter((c) =>
     isIncome ? c.isIncome : !c.isIncome
@@ -252,6 +260,34 @@ export default function TransactionScreen() {
                 ))}
               </ScrollView>
             </View>
+
+            {/* Client picker */}
+            {clients.length > 0 && (
+              <View style={styles.field}>
+                <ThemedText type="small" themeColor="textSecondary">Client (optional)</ThemedText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                  <Pressable
+                    onPress={() => setClientId(null)}
+                    style={[styles.chip, { borderColor: colors.divider }, !clientId && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                    <ThemedText type="small" style={{ color: !clientId ? colors.primaryText : undefined }}>
+                      None
+                    </ThemedText>
+                  </Pressable>
+                  {clients.map((c) => (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setClientId(c.id)}
+                      style={[styles.chip, { borderColor: colors.divider }, clientId === c.id && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                      <ThemedText
+                        type="small"
+                        style={{ color: clientId === c.id ? colors.primaryText : undefined }}>
+                        {c.name}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Save button */}
             <Pressable onPress={handleSave} style={[styles.saveButton, { backgroundColor: colors.primary }]}>

@@ -47,12 +47,28 @@ export interface Transaction {
   amountCents: number; // Positive for income, negative for expense
   currencyCode: string;
   note?: string;
+  clientId?: string; // Optional link to a client
   date: string; // ISO date (YYYY-MM-DD)
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
   // Denormalized for queries
   accountName?: string;
   categoryName?: string;
+  clientName?: string;
+}
+
+export interface Client {
+  id: string; // UUID, matches Supabase
+  userId: string;
+  name: string;
+  email?: string;
+  company?: string;
+  phone?: string;
+  notes?: string;
+  color?: string;
+  currencyCode: string; // Default currency for this client
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
 }
 
 export interface TaxSettings {
@@ -109,7 +125,21 @@ export const MIGRATIONS = [
     amount_cents INTEGER NOT NULL,
     currency_code TEXT NOT NULL,
     note TEXT,
+    client_id TEXT,
     date TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS clients (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT,
+    company TEXT,
+    phone TEXT,
+    notes TEXT,
+    color TEXT,
+    currency_code TEXT NOT NULL DEFAULT 'USD',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -128,6 +158,8 @@ export const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions(account_id)`,
   `CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_client_id ON transactions(client_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_clients_user_id ON clients(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id)`,
   // User preferences (key-value store)
   `CREATE TABLE IF NOT EXISTS user_preferences (

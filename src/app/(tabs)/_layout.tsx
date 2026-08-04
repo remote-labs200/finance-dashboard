@@ -8,7 +8,6 @@ export default function TabsLayout() {
       <Stack.Screen name="accounts" options={{ presentation: 'modal' }} />
       <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
       <Stack.Screen name="insights" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="clients" options={{ presentation: 'modal' }} />
       <Stack.Screen name="mileage" options={{ presentation: 'modal' }} />
       <Stack.Screen name="forecast" options={{ presentation: 'modal' }} />
       <Stack.Screen name="tax-config" options={{ presentation: 'modal' }} />

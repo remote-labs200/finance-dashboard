@@ -11,11 +11,13 @@ export interface TransactionRow {
   amount_cents: number;
   currency_code: string;
   note: string | null;
+  client_id: string | null;
   date: string;
   created_at: string;
   updated_at: string;
   account_name?: string;
   category_name?: string;
+  client_name?: string;
 }
 
 function rowToTransaction(row: TransactionRow): Transaction {
@@ -27,19 +29,22 @@ function rowToTransaction(row: TransactionRow): Transaction {
     amountCents: row.amount_cents,
     currencyCode: row.currency_code,
     note: row.note ?? undefined,
+    clientId: row.client_id ?? undefined,
     date: row.date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     accountName: row.account_name,
     categoryName: row.category_name,
+    clientName: row.client_name,
   };
 }
 
 const TXN_WITH_NAMES = `
-  SELECT t.*, a.name as account_name, c.name as category_name
+  SELECT t.*, a.name as account_name, c.name as category_name, cl.name as client_name
   FROM transactions t
   LEFT JOIN accounts a ON t.account_id = a.id
   LEFT JOIN categories c ON t.category_id = c.id
+  LEFT JOIN clients cl ON t.client_id = cl.id
 `;
 
 export async function createTransaction(
@@ -64,6 +69,7 @@ export async function createTransaction(
     amount_cents: data.amountCents,
     currency_code: data.currencyCode,
     note: data.note ?? null,
+    client_id: data.clientId ?? null,
     date: data.date,
     created_at: now,
     updated_at: now,
@@ -71,8 +77,8 @@ export async function createTransaction(
 
   // Cache to local SQLite
   await db.runAsync(
-    `INSERT INTO transactions (id, user_id, account_id, category_id, amount_cents, currency_code, note, date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO transactions (id, user_id, account_id, category_id, amount_cents, currency_code, note, client_id, date, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     data.userId,
     data.accountId,
@@ -80,6 +86,7 @@ export async function createTransaction(
     data.amountCents,
     data.currencyCode,
     data.note ?? null,
+    data.clientId ?? null,
     data.date,
     now,
     now
@@ -96,6 +103,7 @@ export async function findTransactionsByUser(
     offset?: number;
     accountId?: string;
     categoryId?: string;
+    clientId?: string;
     startDate?: string;
     endDate?: string;
     type?: 'income' | 'expense';
@@ -111,6 +119,10 @@ export async function findTransactionsByUser(
   if (options?.categoryId) {
     query += ' AND t.category_id = ?';
     params.push(options.categoryId);
+  }
+  if (options?.clientId) {
+    query += ' AND t.client_id = ?';
+    params.push(options.clientId);
   }
   if (options?.startDate) {
     query += ' AND t.date >= ?';
@@ -165,6 +177,7 @@ export async function updateTransaction(
   if (data.amountCents !== undefined) cloudData.amount_cents = data.amountCents;
   if (data.currencyCode !== undefined) cloudData.currency_code = data.currencyCode;
   if (data.note !== undefined) cloudData.note = data.note ?? null;
+  if (data.clientId !== undefined) cloudData.client_id = data.clientId ?? null;
   if (data.date !== undefined) cloudData.date = data.date;
 
   // Write to Supabase first (source of truth)
@@ -193,6 +206,10 @@ export async function updateTransaction(
   if (data.note !== undefined) {
     fields.push('note = ?');
     values.push(data.note ?? null);
+  }
+  if (data.clientId !== undefined) {
+    fields.push('client_id = ?');
+    values.push(data.clientId ?? null);
   }
   if (data.date !== undefined) {
     fields.push('date = ?');

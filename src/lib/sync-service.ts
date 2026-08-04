@@ -236,7 +236,7 @@ export async function pullFromSupabase(
 
 // --- Full Sync ---
 
-const SYNC_TABLES = ['accounts', 'categories', 'transactions', 'tax_settings', 'user_preferences'];
+const SYNC_TABLES = ['accounts', 'categories', 'clients', 'transactions', 'tax_settings', 'user_preferences'];
 
 /**
  * Perform a standard full sync:

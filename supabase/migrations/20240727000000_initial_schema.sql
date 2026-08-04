@@ -51,7 +51,30 @@ CREATE POLICY "Users can manage their own categories"
   USING (auth.uid()::text = user_id)
   WITH CHECK (auth.uid()::text = user_id);
 
--- 3. Transactions
+-- 3. Clients
+CREATE TABLE IF NOT EXISTS public.clients (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  email         TEXT,
+  company       TEXT,
+  phone         TEXT,
+  notes         TEXT,
+  color         TEXT,
+  currency_code TEXT NOT NULL DEFAULT 'USD',
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own clients"
+  ON public.clients
+  FOR ALL
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- 4. Transactions
 CREATE TABLE IF NOT EXISTS public.transactions (
   id            TEXT PRIMARY KEY,
   user_id       TEXT NOT NULL,
@@ -60,6 +83,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   amount_cents  INTEGER NOT NULL,
   currency_code TEXT NOT NULL,
   note          TEXT,
+  client_id     TEXT REFERENCES public.clients(id) ON DELETE SET NULL,
   date          TEXT NOT NULL,
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL
@@ -120,3 +144,5 @@ CREATE INDEX IF NOT EXISTS idx_categories_user_id ON public.categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON public.transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON public.transactions(date);
 CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON public.transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_client_id ON public.transactions(client_id);
+CREATE INDEX IF NOT EXISTS idx_clients_user_id ON public.clients(user_id);
