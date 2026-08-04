@@ -154,6 +154,32 @@ export default function DashboardScreen() {
                 </Pressable>
               </View>
 
+              {/* Quick Actions */}
+              <View style={styles.quickActionsSection}>
+                <ThemedText type="callout" style={styles.sectionTitle}>Quick Actions</ThemedText>
+                <View style={styles.quickActionsRow}>
+                  {([
+                    { icon: { ios: 'plus.circle.fill', android: 'add_circle', web: 'add_circle' }, label: 'Add', route: '/(tabs)/transaction' as const, color: colors.primary },
+                    { icon: { ios: 'camera.viewfinder', android: 'photo_camera', web: 'photo_camera' }, label: 'Scan', route: '/(tabs)/(main)/scan' as const, color: colors.orange },
+                    { icon: { ios: 'person.2.fill', android: 'group', web: 'group' }, label: 'Clients', route: '/(tabs)/clients' as const, color: colors.purple },
+                    { icon: { ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }, label: 'AI Insights', route: '/(tabs)/insights' as const, color: colors.cyan },
+                    { icon: { ios: 'car.fill', android: 'directions_car', web: 'directions_car' }, label: 'Mileage', route: '/(tabs)/mileage' as const, color: colors.warning },
+                    { icon: { ios: 'square.and.arrow.up', android: 'ios_share', web: 'ios_share' }, label: 'Export', route: '/(tabs)/export-ledger' as const, color: colors.success },
+                    { icon: { ios: 'arrow.triangle.2.circlepath', android: 'sync', web: 'sync' }, label: 'Sync', route: '/(tabs)/cloud-sync' as const, color: colors.textSecondary },
+                  ] as const).map((action) => (
+                    <Pressable
+                      key={action.label}
+                      style={styles.quickActionItem}
+                      onPress={() => router.push(action.route)}>
+                      <View style={[styles.quickActionCircle, { backgroundColor: action.color + '1a', borderColor: action.color + '33' }]}>
+                        <SymbolView name={action.icon} size={22} tintColor={action.color} />
+                      </View>
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.quickActionLabel}>{action.label}</ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
               {/* Tax Estimation Card */}
               {taxEstimate && (
                 <View style={[styles.card, styles.cardTax, { borderColor: colors.warning + '33', backgroundColor: colors.warning + '14' }]}>
@@ -384,6 +410,29 @@ const styles = StyleSheet.create({
   cardClients: {},
   cardMileage: {},
   cardForecast: {},
+  quickActionsSection: {
+    gap: Spacing.two,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  quickActionItem: {
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 48,
+  },
+  quickActionCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionLabel: {
+    fontSize: 10,
+  },
   accountRow: {
     flexDirection: 'row',
     alignItems: 'center',
