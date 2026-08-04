@@ -178,7 +178,7 @@ export default function NavbarPositionScreen() {
                   Web
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Position changes immediately. Tab bar renders at the top or bottom of the page.
+                  Works fully — the tab bar renders at the top or bottom of the page.
                 </ThemedText>
               </View>
             </View>
@@ -192,7 +192,7 @@ export default function NavbarPositionScreen() {
                   Mobile (iOS / Android)
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Position change applies when using a development build with a custom tab bar. In Expo Go, tabs are always at the bottom.
+                  Requires a development build with a custom tab bar. Expo Go uses the platform-native bottom tab bar.
                 </ThemedText>
               </View>
             </View>
@@ -212,8 +212,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: {
     padding: Spacing.four,
-    paddingBottom: Spacing.six,
-    gap: Spacing.three,
+    paddingBottom: Spacing.three,
   },
 
   header: {

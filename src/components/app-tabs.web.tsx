@@ -12,8 +12,8 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import NotificationBell from './notification-bell.web';
 
-import { useResolvedThemeName } from '@/hooks/use-theme';
-import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useNavbarPosition } from '@/stores/use-ui-prefs';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 
 export default function AppTabs() {
   return (
@@ -60,21 +60,26 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
-  const resolvedScheme = useResolvedThemeName();
-  const colors = Colors[resolvedScheme];
+ const navbarPosition = useNavbarPosition();
+ const isTop = navbarPosition === 'top';
 
-  return (
-    <View {...props} style={styles.tabListContainer}>
-      <ThemedView type="backgroundElement" style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          SmoothTax
-        </ThemedText>
-        <NotificationBell />
+ return (
+   <View
+     {...props}
+     style={[
+       styles.tabListContainer,
+       isTop ? styles.tabListTop : styles.tabListBottom,
+     ]}>
+     <ThemedView type="backgroundElement" style={styles.innerContainer}>
+       <ThemedText type="smallBold" style={styles.brandText}>
+         SmoothTax
+       </ThemedText>
+       <NotificationBell />
 
-        {props.children}
-      </ThemedView>
-    </View>
-  );
+       {props.children}
+     </ThemedView>
+   </View>
+ );
 }
 
 const styles = StyleSheet.create({
@@ -85,6 +90,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
+  },
+  tabListTop: {
+    top: 0,
+  },
+  tabListBottom: {
+    bottom: 0,
   },
   innerContainer: {
     paddingVertical: Spacing.two,
