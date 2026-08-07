@@ -11,6 +11,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { getAuthUser } from '../_shared/auth.ts';
 
 // ---------------------------------------------------------------------------
 // CORS headers — required for Supabase Edge Functions
@@ -153,6 +154,15 @@ Respond with ONLY a JSON object:
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Require an authenticated user (reject the public anon/publishable key).
+  const user = getAuthUser(req);
+  if (!user) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 },
+    );
   }
 
   try {

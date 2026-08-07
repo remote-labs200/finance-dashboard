@@ -302,9 +302,9 @@ cp .env.example .env
 | Variable | Required | Description |
 |---|---|---|
 | `EXPO_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Yes | Your Supabase anon/public key |
-| `EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` | No | Service role key (Edge Functions only) |
-| `EXPO_PUBLIC_AI_EDGE_FUNCTION_URL` | No | AI Edge Function endpoint URL |
+| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Your Supabase **publishable key** (the modern key that replaced the legacy `anon` key) |
+
+> **Security note:** Any server-only secrets for the AI Edge Functions (e.g. `OPENAI_API_KEY`, or the **service_role** key) must be set as [Supabase Edge Function secrets](https://supabase.com/docs/guides/functions/secrets) — **never** via `EXPO_PUBLIC_*`. They are not used by the app bundle and must not ship to clients.
 
 ### Supabase Setup
 
@@ -312,7 +312,8 @@ cp .env.example .env
 2. Go to **SQL Editor** and run the migration in `supabase/migrations/20240727000000_initial_schema.sql`
 3. Enable email/password auth in **Authentication > Providers**
 4. (Optional) Set up OAuth providers (Google, Apple) in **Authentication > Providers**
-5. Fill in your project URL and anon key in `.env`
+5. Fill in your project URL and publishable key in `.env` (see the
+   [`cp .env.example .env`](README.md#installation) template above)
 
 ### Run
 

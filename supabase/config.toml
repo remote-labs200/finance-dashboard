@@ -24,13 +24,13 @@ enable_autoconfirm = true
 include = ["ai-categorize", "ai-insights", "ai-receipt-ocr"]
 
 [functions.ai-categorize]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ai-insights]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ai-receipt-ocr]
-verify_jwt = false
+verify_jwt = true
 
 # Storage — for receipt images
 [storage]

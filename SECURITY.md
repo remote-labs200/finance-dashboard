@@ -49,7 +49,7 @@ Instead, report it privately by emailing **[INSERT SECURITY EMAIL]**.
   happens server-side.
 - Session tokens are stored in `expo-secure-store` (hardware-backed encrypted
   storage on iOS/Android).
-- The Supabase anon key is public by design (RLS protects the data), but the
+- The Supabase publishable key is public by design (RLS protects the data), but the
   **service role key** must never be exposed client-side.
 
 ### API & AI

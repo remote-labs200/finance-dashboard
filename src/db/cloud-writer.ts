@@ -24,10 +24,9 @@ export async function cloudUpsert(
   data: Record<string, unknown>
 ): Promise<CloudWriteResult> {
   if (!supabase) {
-    throw new Error(
-      'Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and ' +
-        'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your .env file.'
-    );
+    // Local-only mode: Supabase isn't configured, so SQLite is the only store.
+    // Let the caller persist locally instead of failing the whole write.
+    return 'written';
   }
 
   try {
@@ -62,10 +61,9 @@ export async function cloudDelete(
   id: string
 ): Promise<CloudWriteResult> {
   if (!supabase) {
-    throw new Error(
-      'Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and ' +
-        'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your .env file.'
-    );
+    // Local-only mode: Supabase isn't configured, so SQLite is the only store.
+    // Let the caller persist locally instead of failing the whole write.
+    return 'written';
   }
 
   try {

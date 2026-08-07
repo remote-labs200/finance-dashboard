@@ -48,7 +48,7 @@ npm install
 
 # Set up environment
 cp .env.example .env
-# Fill in your Supabase project URL and anon key
+# Fill in your Supabase project URL and publishable key
 
 # Start the dev server
 npx expo start
@@ -60,7 +60,7 @@ npx expo start
 2. Run the migration in `supabase/migrations/20240727000000_initial_schema.sql`
    via the SQL Editor
 3. Enable email/password auth in **Authentication > Providers**
-4. Copy your project URL and anon key into `.env`
+4. Copy your project URL and publishable key into `.env`
 
 ---
 

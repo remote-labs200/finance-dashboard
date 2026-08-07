@@ -105,7 +105,7 @@ Three things **no incumbent leads with**:
 
 - **Local-first:** SQLite is the source of truth on-device (OP-SQLite / `expo-sqlite`). Works offline; no round-trips for daily entry.
 - **Cloud sync:** Supabase Postgres mirrors the local schema; sync engine pushes/pulls on change + conflict resolution (last-write-wins + version vector for MVP, CRDT later if needed).
-- **Auth:** Supabase Auth (email + OAuth: Google/Apple). Never store secrets in the bundle; use Supabase anon key + RLS policies.
+- **Auth:** Supabase Auth (email + OAuth: Google/Apple). Never store secrets in the bundle; use the Supabase publishable key + RLS policies.
 - **Receipts:** images → Supabase Storage (encrypted at rest); thumbnails cached locally.
 - **AI:** see §7.
 

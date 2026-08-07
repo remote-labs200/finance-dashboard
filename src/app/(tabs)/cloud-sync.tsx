@@ -91,7 +91,7 @@ export default function CloudSyncScreen() {
       'Supabase Configuration',
       'To configure Supabase, create a .env file in the project root with:\n\n' +
       'EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co\n' +
-      'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-key\n\n' +
+      'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key\n\n' +
       'The app will automatically detect and use these credentials.'
     );
   }, []);

@@ -3,13 +3,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useResolvedThemeName } from '@/hooks/use-theme';
 import { Colors } from '@/constants/theme';
-import type { NavbarPosition } from '@/stores/use-ui-prefs';
 
-interface AppTabsProps {
- tabBarPosition?: NavbarPosition;
-}
-
-export default function AppTabs({ tabBarPosition }: AppTabsProps) {
+export default function AppTabs() {
  const resolvedScheme = useResolvedThemeName();
  const colors = Colors[resolvedScheme];
 
@@ -17,8 +12,7 @@ export default function AppTabs({ tabBarPosition }: AppTabsProps) {
    <NativeTabs
      backgroundColor={colors.background}
      indicatorColor={colors.backgroundElement}
-     labelStyle={{ selected: { color: colors.text } }}
-     tabBarPosition={tabBarPosition}>
+     labelStyle={{ selected: { color: colors.text } }}>
      <NativeTabs.Trigger name="index">
        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
        <NativeTabs.Trigger.Icon

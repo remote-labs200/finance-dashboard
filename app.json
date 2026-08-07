@@ -40,7 +40,10 @@
       "expo-image-picker",
       "expo-notifications",
       "expo-location",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

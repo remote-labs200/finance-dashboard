@@ -175,4 +175,18 @@ export const MIGRATIONS = [
     table_name TEXT PRIMARY KEY NOT NULL,
     last_synced_at TEXT NOT NULL
   )`,
+  // Offline write queue (drained to Supabase when connectivity returns)
+  `CREATE TABLE IF NOT EXISTS sync_log (
+    id TEXT PRIMARY KEY NOT NULL,
+    entity TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    version INTEGER NOT NULL DEFAULT 1,
+    data TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    synced_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_sync_log_status ON sync_log(status)`,
 ];

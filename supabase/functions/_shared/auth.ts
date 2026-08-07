@@ -1,0 +1,34 @@
+/**
+ * Shared auth guard for SmoothTax edge functions.
+ *
+ * With `verify_jwt = true` (supabase/config.toml) the gateway already
+ * validates the JWT signature before this code runs, so decoding the payload
+ * here is safe. We additionally require an *authenticated* user (role
+ * "authenticated" with a `sub` claim) rather than merely the public anon /
+ * publishable key, so that unauthenticated callers cannot invoke cost-bearing
+ * AI endpoints.
+ */
+
+export function getAuthUser(req: Request): { id: string } | null {
+  const authHeader = req.headers.get('authorization') ?? '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  let payload: Record<string, unknown>;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    payload = JSON.parse(atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  if (payload.role !== 'authenticated') return null;
+  const sub = typeof payload.sub === 'string' ? payload.sub : null;
+  if (!sub) return null;
+
+  return { id: sub };
+}
