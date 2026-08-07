@@ -192,7 +192,7 @@ export default function NavbarPositionScreen() {
                   Mobile (iOS / Android)
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Requires a development build with a custom tab bar. Expo Go uses the platform-native bottom tab bar.
+                  Not configurable — mobile uses the platform-native tab bar, which is always at the bottom. This setting applies to web only.
                 </ThemedText>
               </View>
             </View>
