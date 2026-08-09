@@ -1,17 +1,17 @@
-import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
-import * as SQLite from 'expo-sqlite';
+import * as SecureStore from "expo-secure-store";
+import * as SQLite from "expo-sqlite";
+import { create } from "zustand";
 
 import {
-  findUserByEmail,
   createUser,
-  updateUserEmail,
-  updatePasswordHash,
   findFirstUser,
-} from '@/db/user-repo';
-import { supabase } from '@/lib/supabase';
-import { performFullSync, refreshFromCloud } from '@/lib/sync-service';
-import { hashPassword, verifyPassword } from '@/lib/password-hash';
+  findUserByEmail,
+  updatePasswordHash,
+  updateUserEmail,
+} from "@/db/user-repo";
+import { hashPassword, verifyPassword } from "@/lib/password-hash";
+import { supabase } from "@/lib/supabase";
+import { performFullSync, refreshFromCloud } from "@/lib/sync-service";
 
 export interface LocalUser {
   id: string;
@@ -41,13 +41,21 @@ interface AuthState {
    * Real auth errors (wrong credentials) from Supabase are propagated.
    * Only connectivity failures trigger the local fallback.
    */
-  signIn: (db: SQLite.SQLiteDatabase, email: string, password: string) => Promise<void>;
+  signIn: (
+    db: SQLite.SQLiteDatabase,
+    email: string,
+    password: string,
+  ) => Promise<void>;
 
   /**
    * Sign up via Supabase Auth AND store a local password hash
    * for offline access recovery. Requires Supabase to be configured.
    */
-  signUp: (db: SQLite.SQLiteDatabase, email: string, password: string) => Promise<void>;
+  signUp: (
+    db: SQLite.SQLiteDatabase,
+    email: string,
+    password: string,
+  ) => Promise<void>;
 
   signOut: () => Promise<void>;
 
@@ -71,8 +79,8 @@ const isSupabaseConfigured =
   !!process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 // SecureStore keys
-const SS_USER_ID = 'userId';
-const SS_CREDENTIALS = 'userCredentials';
+const SS_USER_ID = "userId";
+const SS_CREDENTIALS = "userCredentials";
 
 /**
  * Determine if a Supabase auth error is a recoverable network error
@@ -86,14 +94,19 @@ function isNetworkError(error: unknown): boolean {
     // fetch failed, network unavailable, DNS resolution failure, etc.
     return true;
   }
-  if (error && typeof error === 'object' && 'message' in error) {
+  if (error && typeof error === "object" && "message" in error) {
     const msg = (error as { message: string }).message.toLowerCase();
-    if (msg.includes('fetch') || msg.includes('network') || msg.includes('econnrefused') || msg.includes('enotfound')) {
+    if (
+      msg.includes("fetch") ||
+      msg.includes("network") ||
+      msg.includes("econnrefused") ||
+      msg.includes("enotfound")
+    ) {
       return true;
     }
   }
   // Auth errors have a numeric status; network errors typically don't
-  if (error && typeof error === 'object' && 'status' in error) {
+  if (error && typeof error === "object" && "status" in error) {
     return false; // Has a structured API error status — not a network issue
   }
   // Anything else — treat as non-recoverable (e.g., invalid API key format)
@@ -112,13 +125,24 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       // --- Attempt 1: Supabase session ---
       if (isSupabaseConfigured && supabase) {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (session?.user) {
-          const email = session.user.email ?? '';
+          const email = session.user.email ?? "";
           let localUser = await findUserByEmail(db, email);
           if (!localUser) {
             // First time seeing this Supabase user on this device
             localUser = await createUser(db, email, session.user.id);
+          } else if (localUser.id !== session.user.id) {
+            // Handle potential ID mismatch if user re-signed up with same email
+            // For now, just update the local user ID to match Supabase
+            await db.runAsync(
+              "UPDATE users SET id = ? WHERE email = ?",
+              session.user.id,
+              email,
+            );
+            localUser.id = session.user.id;
           }
           set({ user: { id: localUser.id, email: localUser.email } });
 
@@ -191,13 +215,17 @@ export const useAuthStore = create<AuthState>((set) => ({
           // Store password hash locally for future offline fallback
           const pwHash = await hashPassword(trimmedEmail, password);
           await updatePasswordHash(db, localUser.id, pwHash);
-          await storeCredentialsInSecureStore(trimmedEmail, pwHash, localUser.id);
+          await storeCredentialsInSecureStore(
+            trimmedEmail,
+            pwHash,
+            localUser.id,
+          );
 
           // Cloud-first: pull data before showing the app so the user
           // lands on a fully populated dashboard.
           const syncResult = await refreshFromCloud(db);
           if (syncResult.errors.length > 0) {
-            console.warn('[Auth] Cloud refresh had errors:', syncResult.errors);
+            console.warn("[Auth] Cloud refresh had errors:", syncResult.errors);
           }
 
           set({ user: { id: localUser.id, email: localUser.email } });
@@ -217,16 +245,20 @@ export const useAuthStore = create<AuthState>((set) => ({
     const localUser = await findUserByEmail(db, trimmedEmail);
     if (!localUser) {
       throw new Error(
-        'No account found with this email. Please check your email or ' +
-        'connect to the internet and try again.'
+        "No account found with this email. Please check your email or " +
+          "connect to the internet and try again.",
       );
     }
 
-    const valid = await verifyPassword(trimmedEmail, password, localUser.passwordHash);
+    const valid = await verifyPassword(
+      trimmedEmail,
+      password,
+      localUser.passwordHash,
+    );
     if (!valid) {
       throw new Error(
-        'Incorrect password. If you recently changed your password online, ' +
-        'connect to the internet and try again.'
+        "Incorrect password. If you recently changed your password online, " +
+          "connect to the internet and try again.",
       );
     }
 
@@ -248,8 +280,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     if (!isSupabaseConfigured || !supabase) {
       throw new Error(
-        'Supabase is not configured. Please set EXPO_PUBLIC_SUPABASE_URL and ' +
-        'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your .env file to create an account.'
+        "Supabase is not configured. Please set EXPO_PUBLIC_SUPABASE_URL and " +
+          "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your .env file to create an account.",
       );
     }
 
@@ -296,7 +328,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   // ──────────────────────────────────────────────
   updateEmail: async (db, newEmail) => {
     const currentUser = useAuthStore.getState().user;
-    if (!currentUser) throw new Error('Not signed in');
+    if (!currentUser) throw new Error("Not signed in");
 
     // Update email in Supabase
     if (supabase) {

@@ -1,19 +1,19 @@
-import { useCallback, useState } from 'react';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
 import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+  NeumorphicButton,
+  NeumorphicCard,
+  NeumorphicInput,
+  NeumorphicPressable,
+  NeumorphicSurface,
+} from "@/components/ui";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { useRouter } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import { useCallback, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ---------------------------------------------------------------------------
 // Vehicle card
@@ -38,19 +38,19 @@ function VehicleCard({
 }) {
   const theme = useTheme();
   return (
-    <View
-      style={[
-        styles.vehicleCard,
-        { borderColor: theme.cardBorder, backgroundColor: theme.card },
-      ]}>
+    <NeumorphicCard style={styles.vehicleCard}>
       <View style={styles.vehicleTop}>
         <SymbolView
-          name={{ ios: 'car.fill', android: 'directions_car', web: 'directions_car' }}
+          name={{
+            ios: "car.fill",
+            android: "directions_car",
+            web: "directions_car",
+          }}
           size={24}
           tintColor={vehicle.isPrimary ? theme.primary : theme.text}
         />
         <View style={styles.vehicleInfo}>
-          <ThemedText type="default" style={{ fontWeight: '600' }}>
+          <ThemedText type="default" style={{ fontWeight: "600" }}>
             {vehicle.name}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -58,32 +58,36 @@ function VehicleCard({
           </ThemedText>
         </View>
         {vehicle.isPrimary && (
-          <View style={[styles.primaryBadge, { backgroundColor: `${theme.primary}15` }]}>
-            <ThemedText type="small" style={{ color: theme.primary, fontWeight: '600' }}>
+          <NeumorphicSurface small style={styles.primaryBadge}>
+            <ThemedText
+              type="small"
+              style={{ color: theme.primary, fontWeight: "600" }}
+            >
               Primary
             </ThemedText>
-          </View>
+          </NeumorphicSurface>
         )}
       </View>
       <View style={styles.vehicleActions}>
         {!vehicle.isPrimary && (
-          <Pressable
+          <NeumorphicButton
+            variant="secondary"
+            style={styles.actionBtn}
             onPress={() => onTogglePrimary(vehicle.id)}
-            style={[styles.actionBtn, { borderColor: theme.primary }]}>
-            <ThemedText type="default" style={{ color: theme.primary, fontWeight: '600' }}>
-              Set as Primary
-            </ThemedText>
-          </Pressable>
+          >
+            Set as Primary
+          </NeumorphicButton>
         )}
-        <Pressable
+        <NeumorphicButton
+          variant="ghost"
+          style={[styles.actionBtn, { borderColor: theme.danger }]}
+          textStyle={{ color: theme.danger }}
           onPress={() => onRemove(vehicle.id)}
-          style={[styles.actionBtn, { borderColor: theme.danger }]}>
-          <ThemedText type="default" style={{ color: theme.danger, fontWeight: '600' }}>
-            Remove
-          </ThemedText>
-        </Pressable>
+        >
+          Remove
+        </NeumorphicButton>
       </View>
-    </View>
+    </NeumorphicCard>
   );
 }
 
@@ -92,24 +96,35 @@ function VehicleCard({
 // ---------------------------------------------------------------------------
 
 const INITIAL_VEHICLES: Vehicle[] = [
-  { id: '1', name: 'My Car', make: 'Toyota Camry', year: '2022', isPrimary: true },
-  { id: '2', name: 'Weekend Van', make: 'Honda Odyssey', year: '2020', isPrimary: false },
+  {
+    id: "1",
+    name: "My Car",
+    make: "Toyota Camry",
+    year: "2022",
+    isPrimary: true,
+  },
+  {
+    id: "2",
+    name: "Weekend Van",
+    make: "Honda Odyssey",
+    year: "2020",
+    isPrimary: false,
+  },
 ];
 
 export default function MileageTrackerSettingsScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [gpsTracking, setGpsTracking] = useState(true);
   const [backgroundTracking, setBackgroundTracking] = useState(false);
-  const [ratePerMile, setRatePerMile] = useState('0.655');
+  const [ratePerMile, setRatePerMile] = useState("0.655");
   const [autoClassify, setAutoClassify] = useState(true);
   const [vehicles, setVehicles] = useState(INITIAL_VEHICLES);
 
   const handleTogglePrimary = useCallback((id: string) => {
-    setVehicles((prev) =>
-      prev.map((v) => ({ ...v, isPrimary: v.id === id })),
-    );
+    setVehicles((prev) => prev.map((v) => ({ ...v, isPrimary: v.id === id })));
   }, []);
 
   const handleRemoveVehicle = useCallback((id: string) => {
@@ -122,7 +137,7 @@ export default function MileageTrackerSettingsScreen() {
       {
         id: String(Date.now()),
         name: `Vehicle ${prev.length + 1}`,
-        make: '',
+        make: "",
         year: String(new Date().getFullYear()),
         isPrimary: prev.length === 0,
       },
@@ -131,12 +146,25 @@ export default function MileageTrackerSettingsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
+      <View style={styles.safe}>
         {/* Header */}
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + Spacing.three,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+        >
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <SymbolView
-              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+              name={{
+                ios: "chevron.left",
+                android: "arrow_back",
+                web: "arrow_back",
+              }}
               size={20}
               tintColor={theme.primary}
             />
@@ -146,16 +174,24 @@ export default function MileageTrackerSettingsScreen() {
           </ThemedText>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+        >
           {/* GPS & permissions */}
           <View style={styles.section}>
             <ThemedText type="callout" style={styles.sectionTitle}>
               GPS &amp; Permissions
             </ThemedText>
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+            <NeumorphicCard style={styles.card}>
               <View style={styles.toggleRow}>
                 <View style={styles.toggleBody}>
-                  <ThemedText type="default" style={{ fontWeight: '500' }}>
+                  <ThemedText type="default" style={{ fontWeight: "500" }}>
                     GPS Tracking
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
@@ -171,26 +207,32 @@ export default function MileageTrackerSettingsScreen() {
               </View>
               {gpsTracking && (
                 <>
-                  <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+                  <View
+                    style={[styles.divider, { backgroundColor: theme.divider }]}
+                  />
                   <View style={styles.toggleRow}>
                     <View style={styles.toggleBody}>
-                      <ThemedText type="default" style={{ fontWeight: '500' }}>
+                      <ThemedText type="default" style={{ fontWeight: "500" }}>
                         Background Tracking
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        Continue tracking even when the app is in the background.
+                        Continue tracking even when the app is in the
+                        background.
                       </ThemedText>
                     </View>
                     <Switch
                       value={backgroundTracking}
                       onValueChange={setBackgroundTracking}
-                      trackColor={{ false: theme.inputBorder, true: theme.primary }}
+                      trackColor={{
+                        false: theme.inputBorder,
+                        true: theme.primary,
+                      }}
                       thumbColor="#fff"
                     />
                   </View>
                 </>
               )}
-            </View>
+            </NeumorphicCard>
           </View>
 
           {/* Rate per mile */}
@@ -198,34 +240,35 @@ export default function MileageTrackerSettingsScreen() {
             <ThemedText type="callout" style={styles.sectionTitle}>
               Rate Per Mile
             </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionSub}>
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.sectionSub}
+            >
               Standard IRS mileage rate or your custom rate for deductions.
             </ThemedText>
-            <View
-              style={[
-                styles.rateCard,
-                { borderColor: theme.cardBorder, backgroundColor: theme.card },
-              ]}>
-              <ThemedText type="default" style={{ fontWeight: '600' }}>
+            <NeumorphicCard style={styles.rateCard}>
+              <ThemedText type="default" style={{ fontWeight: "600" }}>
                 Rate
               </ThemedText>
               <View style={styles.rateInputRow}>
                 <ThemedText
                   type="default"
-                  style={{ color: theme.placeholder, fontWeight: '600', fontSize: 18 }}>
+                  style={{
+                    color: theme.placeholder,
+                    fontWeight: "600",
+                    fontSize: 18,
+                  }}
+                >
                   $
                 </ThemedText>
-                <TextInput
-                  style={[
-                    styles.rateInput,
-                    { color: theme.text, borderBottomColor: theme.inputBorder },
-                  ]}
+                <NeumorphicInput
+                  containerStyle={styles.rateInputWrap}
+                  style={styles.rateInput}
                   value={ratePerMile}
                   onChangeText={setRatePerMile}
                   keyboardType="decimal-pad"
                   placeholder="0.000"
-                  placeholderTextColor={theme.placeholder}
-                  underlineColorAndroid="transparent"
                 />
                 <ThemedText type="default" themeColor="textSecondary">
                   / mile
@@ -234,7 +277,7 @@ export default function MileageTrackerSettingsScreen() {
               <ThemedText type="small" themeColor="textSecondary">
                 IRS 2026 standard rate: $0.655/mile
               </ThemedText>
-            </View>
+            </NeumorphicCard>
           </View>
 
           {/* Auto-classify */}
@@ -242,10 +285,10 @@ export default function MileageTrackerSettingsScreen() {
             <ThemedText type="callout" style={styles.sectionTitle}>
               Trip Classification
             </ThemedText>
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+            <NeumorphicCard style={styles.card}>
               <View style={styles.toggleRow}>
                 <View style={styles.toggleBody}>
-                  <ThemedText type="default" style={{ fontWeight: '500' }}>
+                  <ThemedText type="default" style={{ fontWeight: "500" }}>
                     Auto-Classify Trips
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
@@ -260,7 +303,7 @@ export default function MileageTrackerSettingsScreen() {
                   thumbColor="#fff"
                 />
               </View>
-            </View>
+            </NeumorphicCard>
           </View>
 
           {/* Vehicle profiles */}
@@ -269,29 +312,29 @@ export default function MileageTrackerSettingsScreen() {
               <ThemedText type="callout" style={styles.sectionTitle}>
                 Vehicle Profiles
               </ThemedText>
-              <Pressable
+              <NeumorphicPressable
                 onPress={handleAddVehicle}
-                style={[styles.addBtn, { borderColor: theme.primary }]}>
+                style={styles.addBtn}
+              >
                 <SymbolView
-                  name={{ ios: 'plus', android: 'add', web: 'add' }}
+                  name={{ ios: "plus", android: "add", web: "add" }}
                   size={14}
                   tintColor={theme.primary}
                 />
-                <ThemedText type="default" style={{ color: theme.primary, fontWeight: '600' }}>
+                <ThemedText
+                  type="default"
+                  style={{ color: theme.primary, fontWeight: "600" }}
+                >
                   Add
                 </ThemedText>
-              </Pressable>
+              </NeumorphicPressable>
             </View>
             {vehicles.length === 0 ? (
-              <View
-                style={[
-                  styles.emptyCard,
-                  { borderColor: theme.cardBorder, backgroundColor: theme.card },
-                ]}>
+              <NeumorphicCard style={styles.emptyCard}>
                 <ThemedText type="default" themeColor="textSecondary">
                   No vehicles added yet. Tap "Add" to create one.
                 </ThemedText>
-              </View>
+              </NeumorphicCard>
             ) : (
               vehicles.map((v) => (
                 <VehicleCard
@@ -307,18 +350,23 @@ export default function MileageTrackerSettingsScreen() {
           {/* Info */}
           <View style={styles.infoBox}>
             <SymbolView
-              name={{ ios: 'info.circle', android: 'info', web: 'info' }}
+              name={{ ios: "info.circle", android: "info", web: "info" }}
               size={16}
               tintColor={theme.primary}
             />
-            <ThemedText type="small" themeColor="textSecondary" style={styles.infoText}>
-              Mileage data is stored locally and included in CSV/PDF exports. GPS tracking requires location permissions.
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.infoText}
+            >
+              Mileage data is stored locally and included in CSV/PDF exports.
+              GPS tracking requires location permissions.
             </ThemedText>
           </View>
 
           <View style={{ height: BottomTabInset + Spacing.six }} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -331,8 +379,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.two,
@@ -343,32 +391,31 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: Spacing.four,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
     gap: Spacing.three,
   },
   section: {
     gap: Spacing.one,
   },
   sectionTitle: {
-    fontWeight: '600',
+    fontWeight: "600",
   },
   sectionSub: {
     lineHeight: 18,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   card: {
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
   },
   toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.two,
     gap: Spacing.three,
   },
@@ -382,30 +429,30 @@ const styles = StyleSheet.create({
   rateCard: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
     gap: Spacing.two,
   },
   rateInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.one,
+  },
+  rateInputWrap: {
+    minWidth: 120,
+    flex: 1,
   },
   rateInput: {
     fontSize: 24,
-    fontWeight: '700',
-    borderBottomWidth: 2,
-    paddingVertical: Spacing.half,
+    fontWeight: "700",
     minWidth: 100,
   },
   vehicleCard: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
     gap: Spacing.two,
   },
   vehicleTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.two,
   },
   vehicleInfo: {
@@ -418,36 +465,35 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.one,
   },
   vehicleActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     gap: Spacing.two,
   },
   actionBtn: {
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
+    minHeight: 40,
   },
   addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.half,
     paddingVertical: Spacing.half,
     paddingHorizontal: Spacing.two,
     borderRadius: Spacing.three,
-    borderWidth: 1,
+    padding: 10,
   },
   emptyCard: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   infoBox: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.two,
     padding: Spacing.three,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   infoText: { flex: 1, lineHeight: 18 },
 });

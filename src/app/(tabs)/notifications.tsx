@@ -9,30 +9,28 @@
  *   - Empty state when no notifications
  */
 
-import { useCallback, useMemo } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { FlashList } from "@shopify/flash-list";
+import { useCallback, useMemo } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useResolvedThemeName } from '@/hooks/use-theme';
-import { Colors, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicPressable, NeumorphicSurface } from "@/components/ui";
+import { Colors, Spacing } from "@/constants/theme";
+import { useResolvedThemeName } from "@/hooks/use-theme";
 import {
   useNotificationStore,
   type NotificationItem,
   type NotificationType,
-} from '@/stores/use-notification-store';
+} from "@/stores/use-notification-store";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function timeAgo(ms: number): string {
   const diff = Date.now() - ms;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
+  if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -42,13 +40,13 @@ function timeAgo(ms: number): string {
 }
 
 const TYPE_META: Record<NotificationType, { icon: string; label: string }> = {
-  tax_deadline: { icon: '\u{1F4C5}', label: 'Tax Deadline' },
-  payment_reminder: { icon: '\u{1F4B0}', label: 'Payment' },
-  weekly_summary: { icon: '\u{1F4CA}', label: 'Summary' },
-  anomaly: { icon: '\u{26A0}\u{FE0F}', label: 'Alert' },
-  sync_status: { icon: '\u{1F504}', label: 'Sync' },
-  feature: { icon: '\u{2728}', label: 'New' },
-  system: { icon: '\u{1F6E0}\u{FE0F}', label: 'System' },
+  tax_deadline: { icon: "\u{1F4C5}", label: "Tax Deadline" },
+  payment_reminder: { icon: "\u{1F4B0}", label: "Payment" },
+  weekly_summary: { icon: "\u{1F4CA}", label: "Summary" },
+  anomaly: { icon: "\u{26A0}\u{FE0F}", label: "Alert" },
+  sync_status: { icon: "\u{1F504}", label: "Sync" },
+  feature: { icon: "\u{2728}", label: "New" },
+  system: { icon: "\u{1F6E0}\u{FE0F}", label: "System" },
 };
 
 // ── Row ──────────────────────────────────────────────────────────────
@@ -62,18 +60,18 @@ function NotificationRow({ item }: { item: NotificationItem }) {
   const meta = TYPE_META[item.type] ?? TYPE_META.system;
 
   return (
-    <Pressable
-      onPress={() => { if (!item.read) markRead(item.id); }}
+    <NeumorphicPressable
+      inset={!item.read}
+      onPress={() => {
+        if (!item.read) markRead(item.id);
+      }}
       onLongPress={() => dismiss(item.id)}
-      style={({ pressed }) => [
-        styles.row,
-        !item.read && { backgroundColor: colors.backgroundSelected },
-        pressed && { opacity: 0.7 },
-      ]}>
+      style={styles.row}
+    >
       {/* Type icon */}
-      <View style={styles.rowIcon}>
+      <NeumorphicSurface small style={styles.rowIcon}>
         <ThemedText style={styles.rowEmoji}>{meta.icon}</ThemedText>
-      </View>
+      </NeumorphicSurface>
 
       {/* Content */}
       <View style={styles.rowContent}>
@@ -82,10 +80,16 @@ function NotificationRow({ item }: { item: NotificationItem }) {
             {item.title}
           </ThemedText>
           {!item.read && (
-            <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+            <View
+              style={[styles.unreadDot, { backgroundColor: colors.primary }]}
+            />
           )}
         </View>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.rowBody}>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          style={styles.rowBody}
+        >
           {item.body}
         </ThemedText>
         <View style={styles.rowFooter}>
@@ -97,7 +101,7 @@ function NotificationRow({ item }: { item: NotificationItem }) {
           </ThemedText>
         </View>
       </View>
-    </Pressable>
+    </NeumorphicPressable>
   );
 }
 
@@ -109,8 +113,12 @@ export default function NotificationsScreen() {
   const clearAll = useNotificationStore((s) => s.clearAll);
   const themeName = useResolvedThemeName();
   const colors = Colors[themeName];
+  const insets = useSafeAreaInsets();
 
-  const hasUnread = useMemo(() => notifications.some((n) => !n.read), [notifications]);
+  const hasUnread = useMemo(
+    () => notifications.some((n) => !n.read),
+    [notifications],
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: NotificationItem }) => <NotificationRow item={item} />,
@@ -129,13 +137,23 @@ export default function NotificationsScreen() {
           <View style={styles.headerActions}>
             {hasUnread && (
               <Pressable onPress={markAllRead} hitSlop={8}>
-                <ThemedText type="small" style={{ color: Colors[themeName].primary, fontWeight: '600' }}>
+                <ThemedText
+                  type="small"
+                  style={{
+                    color: Colors[themeName].primary,
+                    fontWeight: "600",
+                  }}
+                >
                   Mark all read
                 </ThemedText>
               </Pressable>
             )}
             <Pressable onPress={clearAll} hitSlop={8}>
-              <ThemedText type="small" themeColor="danger" style={{ fontWeight: '600' }}>
+              <ThemedText
+                type="small"
+                themeColor="danger"
+                style={{ fontWeight: "600" }}
+              >
                 Clear all
               </ThemedText>
             </Pressable>
@@ -151,12 +169,21 @@ export default function NotificationsScreen() {
   const ListEmpty = useCallback(
     () => (
       <View style={styles.empty}>
-        <ThemedText style={styles.emptyIcon}>{'\u{1F514}'}</ThemedText>
-        <ThemedText type="default" themeColor="textSecondary" style={styles.emptyTitle}>
+        <ThemedText style={styles.emptyIcon}>{"\u{1F514}"}</ThemedText>
+        <ThemedText
+          type="default"
+          themeColor="textSecondary"
+          style={styles.emptyTitle}
+        >
           No notifications yet
         </ThemedText>
-        <ThemedText type="small" themeColor="textTertiary" style={styles.emptyBody}>
-          Tax deadlines, payment reminders, and weekly summaries will appear here.
+        <ThemedText
+          type="small"
+          themeColor="textTertiary"
+          style={styles.emptyBody}
+        >
+          Tax deadlines, payment reminders, and weekly summaries will appear
+          here.
         </ThemedText>
       </View>
     ),
@@ -165,13 +192,21 @@ export default function NotificationsScreen() {
 
   return (
     <ThemedView type="background" style={styles.container}>
-      <FlatList
+      <FlashList
         data={notifications}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          {
+            paddingTop: insets.top + Spacing.three,
+            paddingLeft: insets.left + Spacing.three,
+            paddingRight: insets.right + Spacing.three,
+            paddingBottom: insets.bottom + Spacing.six,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       />
     </ThemedView>
@@ -192,30 +227,30 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.four,
   },
   headerActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.three,
   },
 
   // Row
   row: {
-    flexDirection: 'row',
-    paddingVertical: Spacing.two + 2,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.two,
+    flexDirection: "row",
+    padding: Spacing.two + 2,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.three,
     marginBottom: Spacing.one,
   },
   rowIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: Spacing.two,
   },
   rowEmoji: {
@@ -226,8 +261,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.one,
   },
   rowTitle: {
@@ -243,14 +278,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   rowFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: Spacing.half + 1,
   },
 
   // Empty
   empty: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: Spacing.six,
     paddingHorizontal: Spacing.four,
   },
@@ -262,7 +297,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   emptyBody: {
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
 });

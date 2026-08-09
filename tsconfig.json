@@ -12,7 +12,12 @@
     }
   },
   "exclude": [
-    "supabase/functions"
+    "supabase/functions",
+    "node_modules",
+    ".expo",
+    "android",
+    "ios",
+    "dist"
   ],
   "include": [
     "**/*.ts",

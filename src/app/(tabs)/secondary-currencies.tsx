@@ -1,21 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  TextInput,
-} from 'react-native';
-import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useRouter } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import { SymbolView } from "expo-symbols";
+import { useCallback, useEffect, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useAuthStore } from '@/stores/use-auth-store';
-import { useTheme } from '@/hooks/use-theme';
-import { Spacing } from '@/constants/theme';
-import { getPreference, setPreference } from '@/db/preferences-repo';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicButton, NeumorphicPressable } from "@/components/ui";
+import { Spacing } from "@/constants/theme";
+import { getPreference, setPreference } from "@/db/preferences-repo";
+import { useTheme } from "@/hooks/use-theme";
+import { useAuthStore } from "@/stores/use-auth-store";
 
 // ---------------------------------------------------------------------------
 // Available currencies (subset for secondary)
@@ -28,25 +24,25 @@ interface CurrencyInfo {
 }
 
 const AVAILABLE: CurrencyInfo[] = [
-  { code: 'EUR', name: 'Euro', flag: '🇪🇺' },
-  { code: 'GBP', name: 'British Pound', flag: '🇬🇧' },
-  { code: 'JPY', name: 'Japanese Yen', flag: '🇯🇵' },
-  { code: 'CAD', name: 'Canadian Dollar', flag: '🇨🇦' },
-  { code: 'AUD', name: 'Australian Dollar', flag: '🇦🇺' },
-  { code: 'CHF', name: 'Swiss Franc', flag: '🇨🇭' },
-  { code: 'CNY', name: 'Chinese Yuan', flag: '🇨🇳' },
-  { code: 'INR', name: 'Indian Rupee', flag: '🇮🇳' },
-  { code: 'BRL', name: 'Brazilian Real', flag: '🇧🇷' },
-  { code: 'MXN', name: 'Mexican Peso', flag: '🇲🇽' },
-  { code: 'SGD', name: 'Singapore Dollar', flag: '🇸🇬' },
-  { code: 'HKD', name: 'Hong Kong Dollar', flag: '🇭🇰' },
-  { code: 'NZD', name: 'New Zealand Dollar', flag: '🇳🇿' },
-  { code: 'SEK', name: 'Swedish Krona', flag: '🇸🇪' },
-  { code: 'KRW', name: 'South Korean Won', flag: '🇰🇷' },
-  { code: 'NGN', name: 'Nigerian Naira', flag: '🇳🇬' },
-  { code: 'ZAR', name: 'South African Rand', flag: '🇿🇦' },
-  { code: 'AED', name: 'UAE Dirham', flag: '🇦🇪' },
-  { code: 'SAR', name: 'Saudi Riyal', flag: '🇸🇦' },
+  { code: "EUR", name: "Euro", flag: "🇪🇺" },
+  { code: "GBP", name: "British Pound", flag: "🇬🇧" },
+  { code: "JPY", name: "Japanese Yen", flag: "🇯🇵" },
+  { code: "CAD", name: "Canadian Dollar", flag: "🇨🇦" },
+  { code: "AUD", name: "Australian Dollar", flag: "🇦🇺" },
+  { code: "CHF", name: "Swiss Franc", flag: "🇨🇭" },
+  { code: "CNY", name: "Chinese Yuan", flag: "🇨🇳" },
+  { code: "INR", name: "Indian Rupee", flag: "🇮🇳" },
+  { code: "BRL", name: "Brazilian Real", flag: "🇧🇷" },
+  { code: "MXN", name: "Mexican Peso", flag: "🇲🇽" },
+  { code: "SGD", name: "Singapore Dollar", flag: "🇸🇬" },
+  { code: "HKD", name: "Hong Kong Dollar", flag: "🇭🇰" },
+  { code: "NZD", name: "New Zealand Dollar", flag: "🇳🇿" },
+  { code: "SEK", name: "Swedish Krona", flag: "🇸🇪" },
+  { code: "KRW", name: "South Korean Won", flag: "🇰🇷" },
+  { code: "NGN", name: "Nigerian Naira", flag: "🇳🇬" },
+  { code: "ZAR", name: "South African Rand", flag: "🇿🇦" },
+  { code: "AED", name: "UAE Dirham", flag: "🇦🇪" },
+  { code: "SAR", name: "Saudi Riyal", flag: "🇸🇦" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -58,20 +54,21 @@ export default function SecondaryCurrenciesScreen() {
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
-  const [baseCurrency, setBaseCurrency] = useState('USD');
+  const [baseCurrency, setBaseCurrency] = useState("USD");
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getPreference(db, user.id, 'base_currency'),
-      getPreference(db, user.id, 'secondary_currencies'),
+      getPreference(db, user.id, "base_currency"),
+      getPreference(db, user.id, "secondary_currencies"),
     ]).then(([base, raw]) => {
-      setBaseCurrency(base || 'USD');
+      setBaseCurrency(base || "USD");
       if (raw) {
-        setSelectedCodes(new Set(raw.split(',').filter(Boolean)));
+        setSelectedCodes(new Set(raw.split(",").filter(Boolean)));
       }
       setLoaded(true);
     });
@@ -81,7 +78,12 @@ export default function SecondaryCurrenciesScreen() {
     (updated: Set<string>) => {
       if (!user) return;
       setSelectedCodes(updated);
-      setPreference(db, user.id, 'secondary_currencies', [...updated].join(','));
+      setPreference(
+        db,
+        user.id,
+        "secondary_currencies",
+        [...updated].join(","),
+      );
     },
     [user, db],
   );
@@ -110,12 +112,26 @@ export default function SecondaryCurrenciesScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + Spacing.two,
+            paddingLeft: insets.left + Spacing.three,
+            paddingRight: insets.right + Spacing.three,
+          },
+        ]}
+      >
         <Pressable
           onPress={() => router.back()}
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}>
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}
+        >
           <SymbolView
-            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+            name={{
+              ios: "chevron.left",
+              android: "arrow_back",
+              web: "arrow_back",
+            }}
             size={22}
             tintColor={theme.text}
           />
@@ -127,19 +143,27 @@ export default function SecondaryCurrenciesScreen() {
 
       <ThemedText style={styles.description} themeColor="textSecondary">
         Enable additional currencies for tracking foreign income and expenses.
-        Transactions in these currencies will be converted to your base
-        currency ({baseCurrency}) using exchange rates.
+        Transactions in these currencies will be converted to your base currency
+        ({baseCurrency}) using exchange rates.
       </ThemedText>
 
       {/* Action bar */}
       {loaded && (
         <View style={styles.actionBar}>
-          <Pressable onPress={selectAll} style={[styles.actionBtn, { backgroundColor: theme.cardBorder }]}>
-            <ThemedText type="small" style={{ fontWeight: '600' }}>Select All</ThemedText>
-          </Pressable>
-          <Pressable onPress={clearAll} style={[styles.actionBtn, { backgroundColor: theme.cardBorder }]}>
-            <ThemedText type="small" style={{ fontWeight: '600' }}>Clear All</ThemedText>
-          </Pressable>
+          <NeumorphicButton
+            variant="secondary"
+            style={styles.actionBtn}
+            onPress={selectAll}
+          >
+            Select All
+          </NeumorphicButton>
+          <NeumorphicButton
+            variant="secondary"
+            style={styles.actionBtn}
+            onPress={clearAll}
+          >
+            Clear All
+          </NeumorphicButton>
           <ThemedText type="small" themeColor="textSecondary">
             {selectedCodes.size} selected
           </ThemedText>
@@ -148,36 +172,50 @@ export default function SecondaryCurrenciesScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingLeft: insets.left + Spacing.three,
+            paddingRight: insets.right + Spacing.three,
+            paddingBottom: insets.bottom + Spacing.six,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+      >
         {filtered.map((c) => {
           const isOn = selectedCodes.has(c.code);
           return (
-            <Pressable
+            <NeumorphicPressable
               key={c.code}
+              inset={isOn}
               onPress={() => toggle(c.code)}
-              style={({ pressed }) => [
-                styles.currencyRow,
-                { borderBottomColor: theme.divider },
-                pressed && { opacity: 0.6 },
-              ]}>
+              style={[styles.currencyRow, { borderBottomColor: theme.divider }]}
+            >
               <ThemedText style={styles.flag}>{c.flag}</ThemedText>
               <View style={styles.currencyInfo}>
-                <ThemedText type="default" style={{ fontWeight: '500' }}>
+                <ThemedText type="default" style={{ fontWeight: "500" }}>
                   {c.code} — {c.name}
                 </ThemedText>
               </View>
               <SymbolView
                 name={
                   isOn
-                    ? { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }
-                    : { ios: 'circle', android: 'radio_button_unchecked', web: 'radio_button_unchecked' }
+                    ? {
+                        ios: "checkmark.circle.fill",
+                        android: "check_circle",
+                        web: "check_circle",
+                      }
+                    : {
+                        ios: "circle",
+                        android: "radio_button_unchecked",
+                        web: "radio_button_unchecked",
+                      }
                 }
                 size={22}
                 tintColor={isOn ? theme.primary : theme.placeholder}
               />
-            </Pressable>
+            </NeumorphicPressable>
           );
         })}
       </ScrollView>
@@ -194,8 +232,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     gap: Spacing.two,
@@ -213,8 +251,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   actionBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.two,
     gap: Spacing.two,
@@ -231,17 +269,18 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.six,
   },
   currencyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.three,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
+    borderRadius: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: Spacing.two,
   },
   flag: {
     fontSize: 24,
     width: 32,
-    textAlign: 'center',
+    textAlign: "center",
   },
   currencyInfo: {
     flex: 1,

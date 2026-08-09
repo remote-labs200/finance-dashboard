@@ -1,11 +1,12 @@
-import { Pressable, StyleSheet, View, ImageBackground } from 'react-native';
-import { Link } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Link } from "expo-router";
+import { ImageBackground, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { SplashLogo } from '@/components/splash-logo';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/use-theme';
+import { SplashLogo } from "@/components/splash-logo";
+import { ThemedText } from "@/components/themed-text";
+import { NeumorphicButton } from "@/components/ui";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { useThemeColors } from "@/hooks/use-theme";
 
 export default function WelcomeScreen() {
   const colors = useThemeColors();
@@ -14,12 +15,17 @@ export default function WelcomeScreen() {
     <View style={styles.container}>
       {/* Top 65% — Wave background */}
       <ImageBackground
-        source={require('@/assets/images/welcome.png')}
+        source={require("@/assets/images/welcome.png")}
         style={styles.waveBg}
-        resizeMode="cover">
+        resizeMode="cover"
+      >
         <SafeAreaView style={styles.waveSafeArea}>
           <View style={styles.waveContent}>
-            <SplashLogo compact wordmarkColor="#ffffff" taglineColor="rgba(255,255,255,0.8)" />
+            <SplashLogo
+              compact
+              wordmarkColor="#ffffff"
+              taglineColor="rgba(255,255,255,0.8)"
+            />
           </View>
         </SafeAreaView>
       </ImageBackground>
@@ -28,31 +34,23 @@ export default function WelcomeScreen() {
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         <View style={styles.cardContent}>
           <Link href="/(auth)/sign-up" asChild>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-              ]}>
-              <ThemedText type="smallBold" style={{ color: colors.primaryText }}>
-                Create Account
-              </ThemedText>
-            </Pressable>
+            <NeumorphicButton style={styles.primaryBtn}>
+              Create Account
+            </NeumorphicButton>
           </Link>
 
           <Link href="/(auth)/sign-in" asChild>
-            <Pressable
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                { borderColor: colors.divider, opacity: pressed ? 0.7 : 1 },
-              ]}>
-              <ThemedText type="smallBold" themeColor="text">
-                I already have an account
-              </ThemedText>
-            </Pressable>
+            <NeumorphicButton variant="secondary" style={styles.secondaryBtn}>
+              I already have an account
+            </NeumorphicButton>
           </Link>
 
-          <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>
-            SmoothTax &middot; v1.0.0
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.footer}
+          >
+            PaySmooth &middot; v1.0.0
           </ThemedText>
         </View>
       </View>
@@ -62,14 +60,14 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  waveBg: { flex: 0.65, justifyContent: 'flex-end' },
+  waveBg: { flex: 0.65, justifyContent: "flex-end" },
   waveSafeArea: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     paddingHorizontal: Spacing.four,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
     paddingBottom: Spacing.four,
   },
   waveContent: { gap: Spacing.one },
@@ -84,20 +82,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.four,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
     gap: Spacing.two,
   },
   primaryBtn: {
     paddingVertical: Spacing.two,
     borderRadius: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
   secondaryBtn: {
     paddingVertical: Spacing.two,
     borderRadius: 14,
-    alignItems: 'center',
-    borderWidth: 1,
+    alignItems: "center",
   },
-  footer: { textAlign: 'center', paddingTop: Spacing.four, fontSize: 12 },
+  footer: { textAlign: "center", paddingTop: Spacing.four, fontSize: 12 },
 });

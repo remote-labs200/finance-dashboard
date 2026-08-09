@@ -1,18 +1,24 @@
+import { FlashList } from '@shopify/flash-list';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import {
+  NeumorphicButton,
+  NeumorphicCard,
+  NeumorphicInput,
+  NeumorphicPressable,
+  NeumorphicSurface,
+} from '@/components/ui';
 import { useSQLiteContext } from '@/db/provider';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { Category } from '@/db/schema';
@@ -30,6 +36,7 @@ const PRESET_COLORS = ['#3c87f7', '#22c55e', '#ef4444', '#f59e0b', '#8b5cf6', '#
 export default function CategoriesScreen() {
   const db = useSQLiteContext();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
   const [categories, setCategories] = useState<Category[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -114,17 +121,17 @@ export default function CategoriesScreen() {
 
   const renderCategory = useCallback(
     ({ item }: { item: Category }) => (
-      <View style={[styles.card, { borderColor: colors.cardBorder }]}>
+      <NeumorphicCard style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={[styles.colorDot, { backgroundColor: item.color ?? colors.primary }]} />
           <ThemedText type="default" style={{ flex: 1, fontWeight: '600' }}>
             {item.name}
           </ThemedText>
-          <View style={[styles.badge, { backgroundColor: colors.backgroundElement }]}>
+          <NeumorphicSurface small style={styles.badge}>
             <ThemedText type="small" style={{ color: item.isIncome ? colors.success : colors.danger }}>
               {item.isIncome ? 'Income' : 'Expense'}
             </ThemedText>
-          </View>
+          </NeumorphicSurface>
         </View>
         <View style={styles.cardActions}>
           <Pressable onPress={() => handleToggleIncome(item)} style={styles.actionBtn}>
@@ -136,19 +143,26 @@ export default function CategoriesScreen() {
             <ThemedText type="small" style={{ color: colors.danger }}>Delete</ThemedText>
           </Pressable>
         </View>
-      </View>
+      </NeumorphicCard>
     ),
-    [handleToggleIncome, handleDelete, colors.cardBorder, colors.primary, colors.backgroundElement, colors.success, colors.danger]
+    [handleToggleIncome, handleDelete, colors.primary, colors.success, colors.danger]
   );
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <FlatList
+      <View style={styles.safeArea}>
+        <FlashList
           data={[]}
           keyExtractor={() => 'dummy'}
           renderItem={null}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingTop: insets.top + Spacing.three,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
             <View>
@@ -167,31 +181,31 @@ export default function CategoriesScreen() {
 
               {/* Add Form */}
               {showAddForm && (
-                <View style={[styles.addForm, { borderColor: colors.cardBorder }]}>
-                  <TextInput
-                    style={[styles.input, { borderColor: colors.inputBorder, color: colors.text }]}
+                <NeumorphicCard style={styles.addForm}>
+                  <NeumorphicInput
                     placeholder="Category name"
                     value={newName}
                     onChangeText={setNewName}
-                    placeholderTextColor={colors.placeholder}
                     underlineColorAndroid="transparent"
                   />
 
                   <View style={styles.toggleRow}>
-                    <Pressable
+                    <NeumorphicPressable
+                      inset
                       onPress={() => setNewIsIncome(false)}
-                      style={[styles.toggleBtn, { borderColor: colors.inputBorder }, !newIsIncome && { backgroundColor: colors.danger, borderColor: colors.danger }]}>
+                      style={[styles.toggleBtn, !newIsIncome && { backgroundColor: colors.danger }]}>
                       <ThemedText type="small" style={{ color: !newIsIncome ? colors.primaryText : colors.danger }}>
                         Expense
                       </ThemedText>
-                    </Pressable>
-                    <Pressable
+                    </NeumorphicPressable>
+                    <NeumorphicPressable
+                      inset
                       onPress={() => setNewIsIncome(true)}
-                      style={[styles.toggleBtn, { borderColor: colors.inputBorder }, newIsIncome && { backgroundColor: colors.success, borderColor: colors.success }]}>
+                      style={[styles.toggleBtn, newIsIncome && { backgroundColor: colors.success }]}>
                       <ThemedText type="small" style={{ color: newIsIncome ? colors.primaryText : colors.success }}>
                         Income
                       </ThemedText>
-                    </Pressable>
+                    </NeumorphicPressable>
                   </View>
 
                   <View style={styles.colorRow}>
@@ -208,15 +222,14 @@ export default function CategoriesScreen() {
                     ))}
                   </View>
 
-                  <Pressable
+                  <NeumorphicButton
                     onPress={handleAdd}
-                    style={[styles.saveBtn, { backgroundColor: colors.primary }, !newName.trim() && styles.saveBtnDisabled]}
-                    disabled={!newName.trim()}>
-                    <ThemedText type="default" style={{ color: colors.primaryText, fontWeight: '600' }}>
-                      Add Category
-                    </ThemedText>
-                  </Pressable>
-                </View>
+                    disabled={!newName.trim()}
+                    style={[styles.saveBtn, !newName.trim() && styles.saveBtnDisabled]}
+                  >
+                    Add Category
+                  </NeumorphicButton>
+                </NeumorphicCard>
               )}
 
               {/* Income Categories */}
@@ -253,7 +266,7 @@ export default function CategoriesScreen() {
             </View>
           }
         />
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -286,11 +299,9 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
     marginBottom: Spacing.three,
   },
   input: {
-    borderWidth: 1,
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
@@ -305,7 +316,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: Spacing.two,
     alignItems: 'center',
-    borderWidth: 1,
   },
   colorRow: {
     flexDirection: 'row',
@@ -338,7 +348,6 @@ const styles = StyleSheet.create({
   card: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
     gap: Spacing.one,
     marginBottom: Spacing.two,
   },

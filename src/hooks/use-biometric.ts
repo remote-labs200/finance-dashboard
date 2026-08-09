@@ -10,9 +10,9 @@
  *   - If the user cancels, hide the content (don't fall back to showing data)
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import * as LocalAuthentication from 'expo-local-authentication';
-import { Platform } from 'react-native';
+import * as LocalAuthentication from "expo-local-authentication";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 
 export interface BiometricState {
   /** Whether the device supports biometric auth */
@@ -57,21 +57,23 @@ export async function getBiometricSupport(): Promise<{
 /**
  * Map authentication type to a human-readable string.
  */
-export function biometryLabel(type: LocalAuthentication.AuthenticationType | null): string | null {
-  if (Platform.OS === 'ios') {
+export function biometryLabel(
+  type: LocalAuthentication.AuthenticationType | null,
+): string | null {
+  if (Platform.OS === "ios") {
     return type === LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION
-      ? 'Face ID'
+      ? "Face ID"
       : type === LocalAuthentication.AuthenticationType.FINGERPRINT
-        ? 'Touch ID'
+        ? "Touch ID"
         : null;
   }
   // Android
   return type === LocalAuthentication.AuthenticationType.FINGERPRINT
-    ? 'Fingerprint'
+    ? "Fingerprint"
     : type === LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION
-      ? 'Face Unlock'
+      ? "Face Unlock"
       : type === LocalAuthentication.AuthenticationType.IRIS
-        ? 'Iris'
+        ? "Iris"
         : null;
 }
 
@@ -105,9 +107,9 @@ export function useBiometricAuth(
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock SmoothTax',
-        fallbackLabel: 'Enter passcode',
-        cancelLabel: 'Cancel',
+        promptMessage: "Unlock PaySmooth",
+        fallbackLabel: "Enter passcode",
+        cancelLabel: "Cancel",
         disableDeviceFallback: false,
       });
 
@@ -121,7 +123,7 @@ export function useBiometricAuth(
       setState((s) => ({
         ...s,
         isAuthenticated: false,
-        didCancel: !result.error?.includes('not_available'),
+        didCancel: !result.error?.includes("not_available"),
       }));
       return false;
     } catch {

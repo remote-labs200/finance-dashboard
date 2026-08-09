@@ -1,35 +1,43 @@
-import { useCallback, useEffect, useState } from 'react';
+import { FlashList } from "@shopify/flash-list";
+import { SymbolView } from "expo-symbols";
+import { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { SymbolView } from 'expo-symbols';
+    Alert,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useSQLiteContext } from '@/db/provider';
-import { useAuthStore } from '@/stores/use-auth-store';
-import { Account } from '@/db/schema';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import {
-  findAccountsByUser,
-  createAccount,
-  deleteAccount,
-} from '@/db/account-repo';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { formatCurrency } from '@/lib/format';
-import { useThemeColors } from '@/hooks/use-theme';
+    createAccount,
+    deleteAccount,
+    findAccountsByUser,
+} from "@/db/account-repo";
+import { useSQLiteContext } from "@/db/provider";
+import { Account } from "@/db/schema";
+import { useThemeColors } from "@/hooks/use-theme";
+import { formatCurrency } from "@/lib/format";
+import { useAuthStore } from "@/stores/use-auth-store";
 
 export default function AccountsScreen() {
   const db = useSQLiteContext();
   const user = useAuthStore((state) => state.user);
   const colors = useThemeColors();
-  const presetColors = [colors.primary, colors.success, colors.danger, colors.warning, colors.purple, colors.pink];
+  const insets = useSafeAreaInsets();
+  const presetColors = [
+    colors.primary,
+    colors.success,
+    colors.danger,
+    colors.warning,
+    colors.purple,
+    colors.pink,
+  ];
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -39,8 +47,8 @@ export default function AccountsScreen() {
       const accs = await findAccountsByUser(db, user.id);
       setAccounts(accs);
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('closed')) return;
-      console.warn('loadAccounts error:', e);
+      if (e instanceof Error && e.message.includes("closed")) return;
+      console.warn("loadAccounts error:", e);
     }
   }, [db, user]);
 
@@ -55,25 +63,24 @@ export default function AccountsScreen() {
   }, [loadAccounts]);
 
   const handleAdd = useCallback(() => {
-    Alert.prompt?.(
-      'New Account',
-      'Account name',
-      async (name) => {
-        if (!name?.trim() || !user) return;
-        const color = presetColors[accounts.length % presetColors.length];
-        await createAccount(db, {
-          userId: user.id,
-          name: name.trim(),
-          type: 'checking',
-          balanceCents: 0,
-          currencyCode: 'USD',
-          color,
-          isHidden: false,
-        });
-        await loadAccounts();
-      }
-    ) ??
-      Alert.alert('New Account', 'Tap "Add Default Account" to create an account with a default name.');
+    Alert.prompt?.("New Account", "Account name", async (name) => {
+      if (!name?.trim() || !user) return;
+      const color = presetColors[accounts.length % presetColors.length];
+      await createAccount(db, {
+        userId: user.id,
+        name: name.trim(),
+        type: "checking",
+        balanceCents: 0,
+        currencyCode: "USD",
+        color,
+        isHidden: false,
+      });
+      await loadAccounts();
+    }) ??
+      Alert.alert(
+        "New Account",
+        'Tap "Add Default Account" to create an account with a default name.',
+      );
   }, [db, user, accounts.length, loadAccounts]);
 
   const handleQuickAdd = useCallback(async () => {
@@ -83,9 +90,9 @@ export default function AccountsScreen() {
     await createAccount(db, {
       userId: user.id,
       name,
-      type: 'checking',
+      type: "checking",
       balanceCents: 0,
-      currencyCode: 'USD',
+      currencyCode: "USD",
       color,
       isHidden: false,
     });
@@ -94,51 +101,81 @@ export default function AccountsScreen() {
 
   const handleDelete = useCallback(
     (acc: Account) => {
-      Alert.alert('Delete Account', `Delete "${acc.name}"? This cannot be undone.`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteAccount(db, acc.id);
-            await loadAccounts();
+      Alert.alert(
+        "Delete Account",
+        `Delete "${acc.name}"? This cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              await deleteAccount(db, acc.id);
+              await loadAccounts();
+            },
           },
-        },
-      ]);
+        ],
+      );
     },
-    [db, loadAccounts]
+    [db, loadAccounts],
   );
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <FlatList
+      <View style={styles.safeArea}>
+        <FlashList
           data={accounts}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingTop: insets.top + Spacing.three,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           ListHeaderComponent={
             <View style={styles.header}>
               <ThemedText type="title">Accounts</ThemedText>
             </View>
           }
           renderItem={({ item }) => (
-            <View style={[styles.card, { borderColor: colors.cardBorder }]}>
+            <NeumorphicCard style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={[styles.dot, { backgroundColor: item.color ?? colors.primary }]} />
-                <ThemedText type="default" style={{ flex: 1, fontWeight: '600' }}>{item.name}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">{item.type}</ThemedText>
+                <View
+                  style={[
+                    styles.dot,
+                    { backgroundColor: item.color ?? colors.primary },
+                  ]}
+                />
+                <ThemedText
+                  type="default"
+                  style={{ flex: 1, fontWeight: "600" }}
+                >
+                  {item.name}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {item.type}
+                </ThemedText>
               </View>
               <ThemedText type="headline">
                 {formatCurrency(item.balanceCents, item.currencyCode)}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {item.currencyCode} \u00B7 {item.isHidden ? 'Hidden' : 'Active'}
+                {item.currencyCode} \u00B7 {item.isHidden ? "Hidden" : "Active"}
               </ThemedText>
-              <Pressable onPress={() => handleDelete(item)} style={styles.deleteBtn}>
-                <ThemedText type="small" style={{ color: colors.danger }}>Delete</ThemedText>
+              <Pressable
+                onPress={() => handleDelete(item)}
+                style={styles.deleteBtn}
+              >
+                <ThemedText type="small" style={{ color: colors.danger }}>
+                  Delete
+                </ThemedText>
               </Pressable>
-            </View>
+            </NeumorphicCard>
           )}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -149,10 +186,17 @@ export default function AccountsScreen() {
           }
         />
 
-        <Pressable onPress={handleQuickAdd} style={[styles.fab, { backgroundColor: colors.primary, shadowColor: colors.text }]}>
-          <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={24} tintColor={colors.primaryText} />
-        </Pressable>
-      </SafeAreaView>
+        <NeumorphicPressable
+          onPress={handleQuickAdd}
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+        >
+          <SymbolView
+            name={{ ios: "plus", android: "add", web: "add" }}
+            size={24}
+            tintColor={colors.primaryText}
+          />
+        </NeumorphicPressable>
+      </View>
     </ThemedView>
   );
 }
@@ -164,8 +208,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
   },
   header: {
     paddingTop: Spacing.three,
@@ -174,13 +218,12 @@ const styles = StyleSheet.create({
   card: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
     gap: Spacing.one,
     marginBottom: Spacing.two,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.two,
   },
   dot: {
@@ -190,24 +233,20 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     marginTop: Spacing.one,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   empty: {
     paddingVertical: Spacing.six,
-    alignItems: 'center',
+    alignItems: "center",
   },
   fab: {
-    position: 'absolute',
+    position: "absolute",
     right: Spacing.four,
     bottom: BottomTabInset + Spacing.four,
     width: 56,
     height: 56,
     borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

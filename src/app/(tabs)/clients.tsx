@@ -1,23 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
+import { FlashList } from "@shopify/flash-list";
+import { useRouter } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import { useCallback, useEffect, useState } from "react";
+import { RefreshControl, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColors } from '@/hooks/use-theme';
-import { useSQLiteContext } from '@/db/provider';
-import { useAuthStore } from '@/stores/use-auth-store';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { formatCurrency } from '@/lib/format';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard, NeumorphicSurface } from "@/components/ui";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useSQLiteContext } from "@/db/provider";
+import { useThemeColors } from "@/hooks/use-theme";
+import { formatCurrency } from "@/lib/format";
+import { useAuthStore } from "@/stores/use-auth-store";
 
 interface Client {
   id: string;
@@ -33,6 +28,7 @@ export default function ClientsScreen() {
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const [clients, setClients] = useState<Client[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -58,7 +54,7 @@ export default function ClientsScreen() {
          WHERE user_id = ? AND note IS NOT NULL AND note != ''
          GROUP BY note
          ORDER BY total_income DESC`,
-        user.id
+        user.id,
       );
 
       setClients(
@@ -68,12 +64,12 @@ export default function ClientsScreen() {
           totalIncomeCents: r.total_income,
           transactionCount: r.txn_count,
           lastTransactionDate: r.last_date,
-          currencies: r.currencies?.split(',') ?? ['USD'],
-        }))
+          currencies: r.currencies?.split(",") ?? ["USD"],
+        })),
       );
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('closed')) return;
-      console.warn('loadClients error:', e);
+      if (e instanceof Error && e.message.includes("closed")) return;
+      console.warn("loadClients error:", e);
     }
   }, [db, user]);
 
@@ -89,12 +85,21 @@ export default function ClientsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <FlatList
+      <View style={styles.safeArea}>
+        <FlashList
           data={clients}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingTop: insets.top + Spacing.three,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           ListHeaderComponent={
             <View style={styles.header}>
               <ThemedText type="title">Clients</ThemedText>
@@ -104,18 +109,29 @@ export default function ClientsScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View style={[styles.clientCard, { borderColor: colors.cardBorder }]}>
+            <NeumorphicCard style={styles.clientCard}>
               <View style={styles.clientHeader}>
-                <View style={[styles.clientAvatar, { backgroundColor: colors.primary + '26' }]}>
+                <NeumorphicSurface
+                  inset
+                  style={[
+                    styles.clientAvatar,
+                    { backgroundColor: colors.primary + "26" },
+                  ]}
+                >
                   <ThemedText type="headline" style={{ color: colors.primary }}>
                     {item.name.charAt(0).toUpperCase()}
                   </ThemedText>
-                </View>
+                </NeumorphicSurface>
                 <View style={styles.clientInfo}>
-                  <ThemedText type="callout" style={{ fontWeight: '600' }}>{item.name}</ThemedText>
+                  <ThemedText type="callout" style={{ fontWeight: "600" }}>
+                    {item.name}
+                  </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    {item.transactionCount} transaction{item.transactionCount !== 1 ? 's' : ''}
-                    {item.lastTransactionDate ? ` \u00B7 Last: ${item.lastTransactionDate}` : ''}
+                    {item.transactionCount} transaction
+                    {item.transactionCount !== 1 ? "s" : ""}
+                    {item.lastTransactionDate
+                      ? ` \u00B7 Last: ${item.lastTransactionDate}`
+                      : ""}
                   </ThemedText>
                 </View>
                 <ThemedText type="headline" style={{ color: colors.success }}>
@@ -125,27 +141,36 @@ export default function ClientsScreen() {
               {item.currencies.length > 1 && (
                 <View style={styles.currencyBadges}>
                   {item.currencies.map((c) => (
-                    <View key={c} style={[styles.currencyBadge, { backgroundColor: colors.cardBorder }]}>
+                    <NeumorphicSurface
+                      key={c}
+                      small
+                      style={styles.currencyBadge}
+                    >
                       <ThemedText type="small">{c}</ThemedText>
-                    </View>
+                    </NeumorphicSurface>
                   ))}
                 </View>
               )}
-            </View>
+            </NeumorphicCard>
           )}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <SymbolView name={{ ios: 'person.2', android: 'group', web: 'group' }} size={48} tintColor={colors.placeholder} />
+              <SymbolView
+                name={{ ios: "person.2", android: "group", web: "group" }}
+                size={48}
+                tintColor={colors.placeholder}
+              />
               <ThemedText type="default" themeColor="textSecondary">
                 No clients yet
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                When you add transactions with a note (client name), they'll appear here.
+                When you add transactions with a note (client name), they'll
+                appear here.
               </ThemedText>
             </View>
           }
         />
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -157,8 +182,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
   },
   header: {
     gap: Spacing.one,
@@ -168,28 +193,27 @@ const styles = StyleSheet.create({
   clientCard: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
     marginBottom: Spacing.two,
     gap: Spacing.two,
   },
   clientHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.two,
   },
   clientAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   clientInfo: {
     flex: 1,
     gap: 2,
   },
   currencyBadges: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.one,
   },
   currencyBadge: {
@@ -198,7 +222,7 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.two,
   },
   empty: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: Spacing.six,
     gap: Spacing.two,
   },

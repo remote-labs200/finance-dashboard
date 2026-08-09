@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "SmoothTax",
-    "slug": "smooth-tax",
+    "name": "PaySmooth",
+    "slug": "paysmooth",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "smoootax",
+    "scheme": "paysmooth",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"

@@ -219,7 +219,7 @@ sync_log         (entity, entity_id, last_synced_at, version, op[upsert|delete])
 
 **Status: 🚧 Planned — not yet implemented**
 
-SmoothTax uses notifications for two categories:
+PaySmooth uses notifications for two categories:
 
 #### Local Notifications (built — works offline)
 
@@ -346,3 +346,4 @@ Realtime channel        Expo Push Notification
 4. **Sync conflict policy** (last-write-wins acceptable for MVP?).
 5. **Subscription price point** validation with 5–10 freelancers pre-build.
 6. **Bank/CSV import** in MVP or Phase 2+? (Affects "automatic" perception.)
+

@@ -6,12 +6,12 @@
  * and still write to the local SQLite cache so the UI remains responsive.
  */
 
-import * as SQLite from 'expo-sqlite';
-import { supabase } from '@/lib/supabase';
-import { queueSync } from '@/lib/sync-service';
-import { isNetworkError } from './network-utils';
+import { supabase } from "@/lib/supabase";
+import { queueSync } from "@/lib/sync-service";
+import * as SQLite from "expo-sqlite";
+import { isNetworkError } from "./network-utils";
 
-export type CloudWriteResult = 'written' | 'queued';
+export type CloudWriteResult = "written" | "queued";
 
 /**
  * Write (insert or update) a record to Supabase.
@@ -21,31 +21,32 @@ export async function cloudUpsert(
   db: SQLite.SQLiteDatabase,
   table: string,
   id: string,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  onConflict: string = "id",
 ): Promise<CloudWriteResult> {
   if (!supabase) {
     // Local-only mode: Supabase isn't configured, so SQLite is the only store.
     // Let the caller persist locally instead of failing the whole write.
-    return 'written';
+    return "written";
   }
 
   try {
     const { error } = await supabase
       .from(table)
-      .upsert({ id, ...data }, { onConflict: 'id' });
+      .upsert({ ...data }, { onConflict });
 
     if (error) {
       if (isNetworkError(error)) {
-        await queueSync(db, table, id, 'upsert', data);
-        return 'queued';
+        await queueSync(db, table, id, "upsert", data);
+        return "queued";
       }
       throw error;
     }
-    return 'written';
+    return "written";
   } catch (err) {
     if (isNetworkError(err)) {
-      await queueSync(db, table, id, 'upsert', data);
-      return 'queued';
+      await queueSync(db, table, id, "upsert", data);
+      return "queued";
     }
     throw err;
   }
@@ -58,28 +59,28 @@ export async function cloudUpsert(
 export async function cloudDelete(
   db: SQLite.SQLiteDatabase,
   table: string,
-  id: string
+  id: string,
 ): Promise<CloudWriteResult> {
   if (!supabase) {
     // Local-only mode: Supabase isn't configured, so SQLite is the only store.
     // Let the caller persist locally instead of failing the whole write.
-    return 'written';
+    return "written";
   }
 
   try {
-    const { error } = await supabase.from(table).delete().eq('id', id);
+    const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) {
       if (isNetworkError(error)) {
-        await queueSync(db, table, id, 'delete');
-        return 'queued';
+        await queueSync(db, table, id, "delete");
+        return "queued";
       }
       throw error;
     }
-    return 'written';
+    return "written";
   } catch (err) {
     if (isNetworkError(err)) {
-      await queueSync(db, table, id, 'delete');
-      return 'queued';
+      await queueSync(db, table, id, "delete");
+      return "queued";
     }
     throw err;
   }

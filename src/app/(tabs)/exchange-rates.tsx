@@ -1,22 +1,17 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Switch,
-  View,
-  TextInput,
-} from 'react-native';
-import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { FlashList } from "@shopify/flash-list";
+import { useRouter } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import { SymbolView } from "expo-symbols";
+import { memo, useCallback, useEffect, useState } from "react";
+import { Pressable, StyleSheet, Switch, View } from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useAuthStore } from '@/stores/use-auth-store';
-import { useTheme } from '@/hooks/use-theme';
-import { Spacing } from '@/constants/theme';
-import { getPreference, setPreference } from '@/db/preferences-repo';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard, NeumorphicInput } from "@/components/ui";
+import { Spacing } from "@/constants/theme";
+import { getPreference, setPreference } from "@/db/preferences-repo";
+import { useTheme } from "@/hooks/use-theme";
+import { useAuthStore } from "@/stores/use-auth-store";
 
 // ---------------------------------------------------------------------------
 // Reference exchange rates (1 USD = X) for display
@@ -25,19 +20,19 @@ import { getPreference, setPreference } from '@/db/preferences-repo';
 const REFERENCE_RATES: Record<string, number> = {
   EUR: 0.92,
   GBP: 0.79,
-  JPY: 149.50,
+  JPY: 149.5,
   CAD: 1.36,
   AUD: 1.53,
   CHF: 0.88,
   CNY: 7.24,
-  INR: 83.00,
+  INR: 83.0,
   BRL: 4.95,
-  MXN: 17.10,
+  MXN: 17.1,
   SGD: 1.34,
   NZD: 1.63,
-  KRW: 1320.00,
-  NGN: 1550.00,
-  ZAR: 18.50,
+  KRW: 1320.0,
+  NGN: 1550.0,
+  ZAR: 18.5,
   AED: 3.67,
 };
 
@@ -58,7 +53,7 @@ const RateRow = memo(function RateRow({ item }: { item: RateDisplay }) {
   const theme = useTheme();
   return (
     <View style={styles.rateRow}>
-      <ThemedText type="default" style={{ fontWeight: '500', minWidth: 40 }}>
+      <ThemedText type="default" style={{ fontWeight: "500", minWidth: 40 }}>
         {item.to}
       </ThemedText>
       <ThemedText
@@ -66,17 +61,18 @@ const RateRow = memo(function RateRow({ item }: { item: RateDisplay }) {
         themeColor="textSecondary"
         style={{
           flex: 1,
-          textAlign: 'right',
+          textAlign: "right",
           paddingHorizontal: Spacing.two,
           paddingVertical: Spacing.one,
           fontSize: 15,
-          fontVariant: ['tabular-nums'],
-        }}>
+          fontVariant: ["tabular-nums"],
+        }}
+      >
         {item.rate.toFixed(4)}
       </ThemedText>
       {item.editable && (
         <SymbolView
-          name={{ ios: 'square.and.pencil', android: 'edit', web: 'edit' }}
+          name={{ ios: "square.and.pencil", android: "edit", web: "edit" }}
           size={16}
           tintColor={theme.primary}
         />
@@ -95,22 +91,22 @@ export default function ExchangeRatesScreen() {
   const router = useRouter();
   const theme = useTheme();
 
-  const [base, setBase] = useState('USD');
+  const [base, setBase] = useState("USD");
   const [autoUpdate, setAutoUpdate] = useState(true);
-  const [intervalHrs, setIntervalHrs] = useState('24');
+  const [intervalHrs, setIntervalHrs] = useState("24");
   const [rates, setRates] = useState<RateDisplay[]>([]);
 
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getPreference(db, user.id, 'base_currency'),
-      getPreference(db, user.id, 'fx_auto_update'),
-      getPreference(db, user.id, 'fx_auto_update_interval'),
+      getPreference(db, user.id, "base_currency"),
+      getPreference(db, user.id, "fx_auto_update"),
+      getPreference(db, user.id, "fx_auto_update_interval"),
     ]).then(([baseCurr, auto, interval]) => {
-      const b = baseCurr || 'USD';
+      const b = baseCurr || "USD";
       setBase(b);
-      setAutoUpdate(auto !== 'false');
-      setIntervalHrs(interval || '24');
+      setAutoUpdate(auto !== "false");
+      setIntervalHrs(interval || "24");
 
       const allRates: RateDisplay[] = [];
       for (const code of PAIRS) {
@@ -119,7 +115,7 @@ export default function ExchangeRatesScreen() {
           from: b,
           to: code,
           rate: REFERENCE_RATES[code],
-          editable: auto === 'false',
+          editable: auto === "false",
         });
       }
       setRates(allRates);
@@ -130,7 +126,7 @@ export default function ExchangeRatesScreen() {
     (val: boolean) => {
       if (!user) return;
       setAutoUpdate(val);
-      setPreference(db, user.id, 'fx_auto_update', val ? 'true' : 'false');
+      setPreference(db, user.id, "fx_auto_update", val ? "true" : "false");
       // Toggle editable state on all rates
       setRates((prev) => prev.map((r) => ({ ...r, editable: !val })));
     },
@@ -140,9 +136,9 @@ export default function ExchangeRatesScreen() {
   const handleIntervalChange = useCallback(
     (val: string) => {
       if (!user) return;
-      const sanitized = val.replace(/[^0-9]/g, '');
+      const sanitized = val.replace(/[^0-9]/g, "");
       setIntervalHrs(sanitized);
-      setPreference(db, user.id, 'fx_auto_update_interval', sanitized || '24');
+      setPreference(db, user.id, "fx_auto_update_interval", sanitized || "24");
     },
     [user, db],
   );
@@ -151,10 +147,10 @@ export default function ExchangeRatesScreen() {
     () => (
       <>
         {/* Auto-update toggle card */}
-        <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
+        <NeumorphicCard style={styles.card}>
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
-              <ThemedText type="default" style={{ fontWeight: '500' }}>
+              <ThemedText type="default" style={{ fontWeight: "500" }}>
                 Auto-update from internet
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
@@ -172,38 +168,41 @@ export default function ExchangeRatesScreen() {
           {autoUpdate && (
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
-                <ThemedText type="default" style={{ fontWeight: '500' }}>
+                <ThemedText type="default" style={{ fontWeight: "500" }}>
                   Update interval
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
                   How often to refresh rates (hours)
                 </ThemedText>
               </View>
-              <TextInput
-                style={[
-                  styles.input,
-                  { color: theme.text, borderColor: theme.cardBorder, backgroundColor: theme.inputBackground },
-                ]}
+              <NeumorphicInput
+                containerStyle={styles.intervalInput}
+                style={styles.intervalInputText}
                 value={intervalHrs}
                 onChangeText={handleIntervalChange}
                 keyboardType="number-pad"
                 placeholder="24"
-                placeholderTextColor={theme.placeholder}
-                underlineColorAndroid="transparent"
               />
             </View>
           )}
-        </View>
+        </NeumorphicCard>
 
         {/* Section header */}
         <View style={styles.sectionHeader}>
-          <ThemedText type="callout" style={{ fontWeight: '600' }}>
+          <ThemedText type="callout" style={{ fontWeight: "600" }}>
             1 {base} =
           </ThemedText>
         </View>
       </>
     ),
-    [theme, autoUpdate, base, intervalHrs, handleToggleAuto, handleIntervalChange],
+    [
+      theme,
+      autoUpdate,
+      base,
+      intervalHrs,
+      handleToggleAuto,
+      handleIntervalChange,
+    ],
   );
 
   const renderFooter = useCallback(
@@ -229,9 +228,14 @@ export default function ExchangeRatesScreen() {
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}>
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}
+        >
           <SymbolView
-            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+            name={{
+              ios: "chevron.left",
+              android: "arrow_back",
+              web: "arrow_back",
+            }}
             size={22}
             tintColor={theme.text}
           />
@@ -241,7 +245,7 @@ export default function ExchangeRatesScreen() {
         </ThemedText>
       </View>
 
-      <FlatList
+      <FlashList
         data={rates}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -250,10 +254,6 @@ export default function ExchangeRatesScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={8}
-        windowSize={5}
-        initialNumToRender={16}
       />
     </ThemedView>
   );
@@ -268,8 +268,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     gap: Spacing.two,
@@ -287,14 +287,13 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.three,
     marginBottom: Spacing.three,
   },
   settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: Spacing.two,
     gap: Spacing.two,
   },
@@ -302,13 +301,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  input: {
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    minWidth: 60,
-    textAlign: 'center',
+  intervalInput: {
+    minWidth: 96,
+  },
+  intervalInputText: {
+    textAlign: "center",
     fontSize: 16,
   },
   sectionHeader: {
@@ -316,15 +313,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   rateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     minHeight: 44,
   },
   hint: {
     fontSize: 13,
-    textAlign: 'center',
+    textAlign: "center",
     paddingTop: Spacing.three,
   },
 });

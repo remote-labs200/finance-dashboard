@@ -1,28 +1,40 @@
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, View } from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard } from "@/components/ui";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
 
 export default function ClientsWebScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.content}>
-        <ThemedText type="title">Client Ledger</ThemedText>
-        <ThemedText type="default" themeColor="textSecondary" style={{ marginTop: Spacing.two }}>
-          Client management is available on the mobile app.
-        </ThemedText>
+        <NeumorphicCard style={styles.card}>
+          <ThemedText type="title">Client Ledger</ThemedText>
+          <ThemedText
+            type="default"
+            themeColor="textSecondary"
+            style={{ marginTop: Spacing.two }}
+          >
+            Client management is available on the mobile app.
+          </ThemedText>
+        </NeumorphicCard>
       </View>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: {
     maxWidth: MaxContentWidth,
     padding: Spacing.four,
-    alignItems: 'center',
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  card: {
+    width: "100%",
+    alignItems: "center",
     gap: Spacing.two,
   },
 });

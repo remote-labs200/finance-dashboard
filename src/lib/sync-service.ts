@@ -314,6 +314,23 @@ export async function refreshFromCloud(
   return result;
 }
 
+// --- Sync State Helpers ---
+
+/**
+ * Returns the most recent successful sync timestamp across all sync_log
+ * entries, or null if nothing has ever synced successfully.
+ */
+export async function getLastSyncedAt(
+  db: SQLite.SQLiteDatabase
+): Promise<string | null> {
+  const row = await db.getFirstAsync<{ synced_at: string | null }>(
+    `SELECT synced_at FROM sync_log
+     WHERE status = 'synced' AND synced_at IS NOT NULL
+     ORDER BY synced_at DESC LIMIT 1`
+  );
+  return row?.synced_at ?? null;
+}
+
 // --- Connection Status ---
 
 export async function checkSupabaseConnection(): Promise<boolean> {

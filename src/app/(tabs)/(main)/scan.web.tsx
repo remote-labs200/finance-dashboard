@@ -1,8 +1,10 @@
-import { StyleSheet, View, SafeAreaView } from 'react-native';
+import { StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard } from "@/components/ui";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
 
 export default function ScanWebScreen() {
   return (
@@ -14,12 +16,15 @@ export default function ScanWebScreen() {
             Take a photo or select an image to extract receipt data
           </ThemedText>
 
-          <View style={styles.card}>
-            <ThemedText type="callout" style={{ fontWeight: '600' }}>Camera Not Available</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Receipt scanning is only available on mobile devices. Use the mobile app to scan receipts.
+          <NeumorphicCard style={styles.card}>
+            <ThemedText type="callout" style={{ fontWeight: "600" }}>
+              Camera Not Available
             </ThemedText>
-          </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              Receipt scanning is only available on mobile devices. Use the
+              mobile app to scan receipts.
+            </ThemedText>
+          </NeumorphicCard>
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -33,17 +38,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.six,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
     gap: Spacing.three,
   },
   card: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
-    borderWidth: 1,
-    borderColor: 'rgba(128,128,128,0.15)',
     gap: Spacing.one,
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: Spacing.six,
   },
 });

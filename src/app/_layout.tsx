@@ -1,35 +1,46 @@
-import { DarkTheme, DefaultTheme, ThemeProvider, Stack, useRouter } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, StatusBar, StyleSheet } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-
-import { DatabaseProvider, useSQLiteContext } from '@/db/provider';
-import { useAuthStore } from '@/stores/use-auth-store';
-import { useThemeStore } from '@/stores/use-theme-store';
-import { useResolvedThemeName } from '@/hooks/use-theme';
-import { Colors } from '@/constants/theme';
 import {
-  setupNotificationChannels,
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  useRouter,
+} from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect, useRef, useState } from "react";
+import { Animated, StatusBar, StyleSheet } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+import { ErrorBoundary } from "@/components/error-boundary";
+import { OfflineIndicator } from "@/components/offline-indicator";
+import { SplashLogo } from "@/components/splash-logo";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { Colors } from "@/constants/theme";
+import { DatabaseProvider, useSQLiteContext } from "@/db/provider";
+import { useBiometricAuth } from "@/hooks/use-biometric";
+import { useResolvedThemeName } from "@/hooks/use-theme";
+import {
   requestNotificationPermission,
-} from '@/lib/notification-service';
-import { ErrorBoundary } from '@/components/error-boundary';
-import { OfflineIndicator } from '@/components/offline-indicator';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useBiometricAuth } from '@/hooks/use-biometric';
-import { SplashLogo } from '@/components/splash-logo';
+  setupNotificationChannels,
+} from "@/lib/notification-service";
+import { performFullSync } from "@/lib/sync-service";
+import { useAuthStore } from "@/stores/use-auth-store";
+import { useThemeStore } from "@/stores/use-theme-store";
+import { useNetInfo } from "@react-native-community/netinfo";
 
 SplashScreen.preventAutoHideAsync();
 
-const ONBOARDING_KEY = 'onboarding_completed';
-const SPLASH_BG = '#208AEF';
+const ONBOARDING_KEY = "onboarding_completed";
+const SPLASH_BG = "#208AEF";
 
 export default function RootLayout() {
   return (
-    <DatabaseProvider>
-      <RootLayoutInner />
-    </DatabaseProvider>
+    <SafeAreaProvider>
+      <DatabaseProvider>
+        <RootLayoutInner />
+      </DatabaseProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -45,8 +56,20 @@ function RootLayoutInner() {
   const [showSplash, setShowSplash] = useState(true);
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const resolvedTheme = useResolvedThemeName();
+  const netInfo = useNetInfo();
 
-  const { isAvailable: bioAvailable, isAuthenticated: bioAuthed, authenticate: bioAuth } = useBiometricAuth(biometricEnabled);
+  const {
+    isAvailable: bioAvailable,
+    isAuthenticated: bioAuthed,
+    authenticate: bioAuth,
+  } = useBiometricAuth(biometricEnabled);
+
+  // Sync on network change
+  useEffect(() => {
+    if (netInfo.isConnected && user) {
+      performFullSync(db).catch(console.error);
+    }
+  }, [netInfo.isConnected, user, db]);
 
   const unlocked = !bioAvailable || !biometricEnabled || bioAuthed || !user;
 
@@ -73,7 +96,9 @@ function RootLayoutInner() {
         });
       }, 1200);
     });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [init, db, loadThemePreference, splashOpacity]);
 
   // Check onboarding status when user signs in
@@ -84,16 +109,18 @@ function RootLayoutInner() {
       return;
     }
     SecureStore.getItemAsync(ONBOARDING_KEY).then((val) => {
-      if (mounted) setOnboardingDone(val === 'true');
+      if (mounted) setOnboardingDone(val === "true");
     });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   // Check if biometric is preferred by user
   useEffect(() => {
     if (!user) return;
-    SecureStore.getItemAsync('biometric_enabled').then((val) => {
-      setBiometricEnabled(val === 'true');
+    SecureStore.getItemAsync("biometric_enabled").then((val) => {
+      setBiometricEnabled(val === "true");
     });
   }, [user]);
 
@@ -110,7 +137,7 @@ function RootLayoutInner() {
     if (user) {
       // Don't navigate yet -- wait for onboarding check
     } else {
-      router.replace('/(auth)/welcome');
+      router.replace("/(auth)/welcome");
     }
   }, [user, router]);
 
@@ -118,22 +145,36 @@ function RootLayoutInner() {
     if (!user || onboardingDone === null) return;
 
     if (onboardingDone) {
-      router.replace('/(tabs)' as any);
+      router.replace("/(tabs)" as any);
     } else {
-      router.replace('/(auth)/onboarding');
+      router.replace("/(auth)/onboarding");
     }
   }, [user, onboardingDone, router]);
 
   // ── Biometric lock screen ─────────────────────────────────────────────────
   if (!unlocked) {
     return (
-      <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-        <SplashLogo wordmarkColor={Colors[resolvedTheme].text} taglineColor={Colors[resolvedTheme].textSecondary} />
-        <ThemedText type="callout" themeColor="textSecondary" style={{ marginTop: 48 }}>
+      <ThemedView
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 32,
+        }}
+      >
+        <SplashLogo
+          wordmarkColor={Colors[resolvedTheme].text}
+          taglineColor={Colors[resolvedTheme].textSecondary}
+        />
+        <ThemedText
+          type="callout"
+          themeColor="textSecondary"
+          style={{ marginTop: 48 }}
+        >
           Authenticate to unlock the app
         </ThemedText>
         <StatusBar
-          barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
+          barStyle={resolvedTheme === "dark" ? "light-content" : "dark-content"}
           backgroundColor={Colors[resolvedTheme].background}
         />
       </ThemedView>
@@ -144,9 +185,13 @@ function RootLayoutInner() {
   return (
     <>
       <ErrorBoundary>
-        <ThemeProvider value={resolvedTheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider
+          value={resolvedTheme === "dark" ? DarkTheme : DefaultTheme}
+        >
           <StatusBar
-            barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
+            barStyle={
+              resolvedTheme === "dark" ? "light-content" : "dark-content"
+            }
             backgroundColor={Colors[resolvedTheme].background}
           />
           {user && <OfflineIndicator />}
@@ -168,7 +213,8 @@ function RootLayoutInner() {
             StyleSheet.absoluteFill,
             styles.splashOverlay,
             { opacity: splashOpacity },
-          ]}>
+          ]}
+        >
           <SplashLogo />
         </Animated.View>
       )}
@@ -179,7 +225,7 @@ function RootLayoutInner() {
 const styles = StyleSheet.create({
   splashOverlay: {
     backgroundColor: SPLASH_BG,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

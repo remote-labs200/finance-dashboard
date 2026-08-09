@@ -2,22 +2,18 @@
  * App Theme — light / dark / system selection with live preview cards.
  */
 
-import { useCallback } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter } from "expo-router";
+import { useCallback } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeStore, type ThemePreference } from '@/stores/use-theme-store';
-import { useUiPrefs } from '@/stores/use-ui-prefs';
-import { useResolvedThemeName } from '@/hooks/use-theme';
-import { Colors, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
+import { Colors, Spacing } from "@/constants/theme";
+import { useResolvedThemeName, useThemeColors } from "@/hooks/use-theme";
+import { useThemeStore, type ThemePreference } from "@/stores/use-theme-store";
+import { useUiPrefs } from "@/stores/use-ui-prefs";
 
 // ── Theme preview card ───────────────────────────────────────────────
 
@@ -29,22 +25,22 @@ const THEME_OPTIONS: {
   preview: [string, string, string];
 }[] = [
   {
-    value: 'light',
-    label: 'Light',
-    description: 'Clean, bright interface for daytime use.',
-    preview: ['#ffffff', '#000000', '#1a6ba5'],
+    value: "light",
+    label: "Light",
+    description: "Clean, bright interface for daytime use.",
+    preview: ["#ffffff", "#000000", "#1a6ba5"],
   },
   {
-    value: 'dark',
-    label: 'Dark',
-    description: 'Reduced eye strain in low-light environments.',
-    preview: ['#1a1a1a', '#ffffff', '#1a6ba5'],
+    value: "dark",
+    label: "Dark",
+    description: "Reduced eye strain in low-light environments.",
+    preview: ["#1a1a1a", "#ffffff", "#1a6ba5"],
   },
   {
-    value: 'system',
-    label: 'System',
-    description: 'Automatically matches your device theme setting.',
-    preview: ['#f0f0f3', '#333333', '#1a6ba5'],
+    value: "system",
+    label: "System",
+    description: "Automatically matches your device theme setting.",
+    preview: ["#f0f0f3", "#333333", "#1a6ba5"],
   },
 ];
 
@@ -63,38 +59,55 @@ function ThemeCard({
   selected: boolean;
   onSelect: (v: ThemePreference) => void;
 }) {
+  const colors = useThemeColors();
   return (
-    <Pressable
+    <NeumorphicPressable
+      inset={selected}
       onPress={() => onSelect(value)}
-      style={({ pressed }) => [
-        styles.card,
-        { borderColor: selected ? preview[2] : 'transparent' },
-        selected && { borderWidth: 2 },
-        pressed && { opacity: 0.7 },
-      ]}>
+      style={[styles.card, selected && { backgroundColor: colors.primary }]}
+    >
       {/* Mini preview */}
       <View style={[styles.previewBox, { backgroundColor: preview[0] }]}>
         <View style={styles.previewLine} />
-        <View style={[styles.previewLineShort, { backgroundColor: preview[1], opacity: 0.6 }]} />
+        <View
+          style={[
+            styles.previewLineShort,
+            { backgroundColor: preview[1], opacity: 0.6 },
+          ]}
+        />
         <View style={[styles.previewAccent, { backgroundColor: preview[2] }]} />
       </View>
 
       <View style={styles.cardBody}>
         <View style={styles.cardHeader}>
-          <ThemedText type="callout" style={{ fontWeight: '600' }}>
+          <ThemedText
+            type="callout"
+            style={{
+              fontWeight: "600",
+              color: selected ? colors.surface : undefined,
+            }}
+          >
             {label}
           </ThemedText>
           {selected && (
-            <ThemedText style={[styles.checkmark, { color: preview[2] }]}>
-              {'\u2713'}
+            <ThemedText
+              style={[
+                styles.checkmark,
+                { color: selected ? colors.surface : preview[2] },
+              ]}
+            >
+              {"\u2713"}
             </ThemedText>
           )}
         </View>
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText
+          type="small"
+          style={{ color: selected ? colors.surface : undefined }}
+        >
           {description}
         </ThemedText>
       </View>
-    </Pressable>
+    </NeumorphicPressable>
   );
 }
 
@@ -110,6 +123,7 @@ export default function AppThemeScreen() {
   const setCompactMode = useUiPrefs((s) => s.setCompactMode);
   const resolvedScheme = useResolvedThemeName();
   const colors = Colors[resolvedScheme];
+  const insets = useSafeAreaInsets();
 
   const handleSelect = useCallback(
     (val: ThemePreference) => {
@@ -120,18 +134,32 @@ export default function AppThemeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
+      <View style={styles.safe}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}>
-
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingTop: insets.top + Spacing.four,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           {/* ── Header ── */}
           <View style={styles.header}>
             <Pressable
               onPress={() => router.back()}
-              style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-              <ThemedText type="default" style={{ color: colors.primary, fontWeight: '600' }}>
-                {'\u2190 Back'}
+              style={({ pressed }) => [
+                styles.backBtn,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <ThemedText
+                type="default"
+                style={{ color: colors.primary, fontWeight: "600" }}
+              >
+                {"\u2190 Back"}
               </ThemedText>
             </Pressable>
             <ThemedText type="title">App Theme</ThemedText>
@@ -148,11 +176,11 @@ export default function AppThemeScreen() {
           ))}
 
           {/* ── Extra customization toggles ── */}
-          <View style={[styles.togglesCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
+          <NeumorphicCard style={styles.togglesCard}>
             {/* Haptic Feedback */}
             <View style={styles.toggleRow}>
               <View style={styles.toggleBody}>
-                <ThemedText type="default" style={{ fontWeight: '500' }}>
+                <ThemedText type="default" style={{ fontWeight: "500" }}>
                   Haptic Feedback
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
@@ -164,24 +192,32 @@ export default function AppThemeScreen() {
                 style={[
                   styles.toggleSwitch,
                   {
-                    backgroundColor: hapticsEnabled ? colors.primary : colors.inputBorder,
+                    backgroundColor: hapticsEnabled
+                      ? colors.primary
+                      : colors.inputBorder,
                   },
-                ]}>
+                ]}
+              >
                 <View
                   style={[
                     styles.toggleKnob,
-                    hapticsEnabled && { alignSelf: 'flex-end' },
+                    hapticsEnabled && { alignSelf: "flex-end" },
                   ]}
                 />
               </Pressable>
             </View>
 
-            <View style={[styles.toggleDivider, { backgroundColor: colors.divider }]} />
+            <View
+              style={[
+                styles.toggleDivider,
+                { backgroundColor: colors.divider },
+              ]}
+            />
 
             {/* Compact Mode */}
             <View style={styles.toggleRow}>
               <View style={styles.toggleBody}>
-                <ThemedText type="default" style={{ fontWeight: '500' }}>
+                <ThemedText type="default" style={{ fontWeight: "500" }}>
                   Compact Mode
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
@@ -192,26 +228,36 @@ export default function AppThemeScreen() {
                 onPress={() => setCompactMode(!compactMode)}
                 style={[
                   styles.toggleSwitch,
-                  { backgroundColor: compactMode ? colors.primary : colors.inputBorder },
-                ]}>
+                  {
+                    backgroundColor: compactMode
+                      ? colors.primary
+                      : colors.inputBorder,
+                  },
+                ]}
+              >
                 <View
                   style={[
                     styles.toggleKnob,
-                    compactMode && { alignSelf: 'flex-end' },
+                    compactMode && { alignSelf: "flex-end" },
                   ]}
                 />
               </Pressable>
             </View>
-          </View>
+          </NeumorphicCard>
 
           {/* ── Info ── */}
-          <ThemedText type="small" themeColor="textTertiary" style={styles.info}>
-            Changes apply immediately. Theme preference is synced across devices when signed in.
+          <ThemedText
+            type="small"
+            themeColor="textTertiary"
+            style={styles.info}
+          >
+            Changes apply immediately. Theme preference is synced across devices
+            when signed in.
           </ThemedText>
 
           <View style={{ height: Spacing.six }} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -232,7 +278,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   backBtn: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.half,
     marginLeft: -Spacing.half,
@@ -240,31 +286,29 @@ const styles = StyleSheet.create({
 
   // Cards
   card: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderRadius: Spacing.three,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   previewBox: {
     width: 80,
     padding: Spacing.two,
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 6,
   },
   previewLine: {
     height: 4,
-    backgroundColor: 'rgba(128,128,128,0.3)',
+    backgroundColor: "rgba(128,128,128,0.3)",
     borderRadius: 2,
   },
   previewLineShort: {
     height: 4,
-    width: '60%',
+    width: "60%",
     borderRadius: 2,
   },
   previewAccent: {
     height: 6,
-    width: '80%',
+    width: "80%",
     borderRadius: 3,
     marginTop: 4,
   },
@@ -274,26 +318,24 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   checkmark: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   // Toggles
   togglesCard: {
-    borderRadius: Spacing.three,
-    borderWidth: 1,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     marginTop: Spacing.two,
   },
   toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.two,
     gap: Spacing.three,
   },
@@ -306,13 +348,13 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     padding: 3,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   toggleKnob: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
   },
   toggleDivider: {
     height: StyleSheet.hairlineWidth,
@@ -320,7 +362,7 @@ const styles = StyleSheet.create({
   },
 
   info: {
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 18,
     paddingHorizontal: Spacing.four,
   },

@@ -2,21 +2,17 @@
  * Navbar Position — choose bottom (default) or top tab bar placement.
  */
 
-import { useCallback } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter } from "expo-router";
+import { useCallback } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useUiPrefs, type NavbarPosition } from '@/stores/use-ui-prefs';
-import { useResolvedThemeName } from '@/hooks/use-theme';
-import { Colors, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
+import { Colors, Spacing } from "@/constants/theme";
+import { useResolvedThemeName } from "@/hooks/use-theme";
+import { useUiPrefs, type NavbarPosition } from "@/stores/use-ui-prefs";
 
 // ── Position options ─────────────────────────────────────────────────
 
@@ -28,16 +24,18 @@ const POSITION_OPTIONS: {
   tabs: string[];
 }[] = [
   {
-    value: 'bottom',
-    label: 'Bottom',
-    description: 'Classic placement — tabs at the bottom of the screen, within easy thumb reach.',
-    tabs: ['Home', 'Transactions', 'Scan', 'Reports', 'Account'],
+    value: "bottom",
+    label: "Bottom",
+    description:
+      "Classic placement — tabs at the bottom of the screen, within easy thumb reach.",
+    tabs: ["Home", "Transactions", "Scan", "Reports", "Account"],
   },
   {
-    value: 'top',
-    label: 'Top',
-    description: 'Tabs at the top — more space for content below, familiar on desktop web.',
-    tabs: ['Home', 'Transactions', 'Scan', 'Reports', 'Account'],
+    value: "top",
+    label: "Top",
+    description:
+      "Tabs at the top — more space for content below, familiar on desktop web.",
+    tabs: ["Home", "Transactions", "Scan", "Reports", "Account"],
   },
 ];
 
@@ -60,35 +58,41 @@ function PositionCard({
   const colors = Colors[themeName];
 
   return (
-    <Pressable
+    <NeumorphicPressable
+      inset={selected}
       onPress={() => onSelect(value)}
-      style={({ pressed }) => [
-        styles.card,
-        { borderColor: selected ? colors.primary : colors.cardBorder },
-        selected && { borderWidth: 2 },
-        pressed && { opacity: 0.7 },
-      ]}>
+      style={[styles.card, selected && { backgroundColor: colors.primary }]}
+    >
       {/* Mock device frame */}
-      <View style={[styles.mockDevice, { backgroundColor: colors.backgroundElement }]}>
+      <View
+        style={[
+          styles.mockDevice,
+          { backgroundColor: colors.backgroundElement },
+        ]}
+      >
         {/* Tab bar mock — positioned based on value */}
         <View
           style={[
             styles.mockTabs,
-            value === 'top' ? styles.mockTabsTop : styles.mockTabsBottom,
+            value === "top" ? styles.mockTabsTop : styles.mockTabsBottom,
             { backgroundColor: colors.card },
-          ]}>
+          ]}
+        >
           {tabs.map((t, i) => (
             <View key={t} style={styles.mockTab}>
               <View
                 style={[
                   styles.mockDot,
-                  { backgroundColor: i === 0 ? colors.primary : colors.divider },
+                  {
+                    backgroundColor: i === 0 ? colors.primary : colors.divider,
+                  },
                 ]}
               />
               <ThemedText
                 type="small"
-                themeColor={i === 0 ? 'text' : 'textTertiary'}
-                style={styles.mockTabLabel}>
+                themeColor={i === 0 ? "text" : "textTertiary"}
+                style={styles.mockTabLabel}
+              >
                 {t}
               </ThemedText>
             </View>
@@ -96,27 +100,45 @@ function PositionCard({
         </View>
         {/* Content area */}
         <View style={styles.mockContent}>
-          <View style={[styles.mockLine, { backgroundColor: colors.divider }]} />
-          <View style={[styles.mockLineShort, { backgroundColor: colors.divider }]} />
+          <View
+            style={[styles.mockLine, { backgroundColor: colors.divider }]}
+          />
+          <View
+            style={[styles.mockLineShort, { backgroundColor: colors.divider }]}
+          />
         </View>
       </View>
 
       <View style={styles.cardBody}>
         <View style={styles.cardHeader}>
-          <ThemedText type="callout" style={{ fontWeight: '600' }}>
+          <ThemedText
+            type="callout"
+            style={{
+              fontWeight: "600",
+              color: selected ? colors.surface : undefined,
+            }}
+          >
             {label}
           </ThemedText>
           {selected && (
-            <ThemedText style={[styles.checkmark, { color: colors.primary }]}>
-              {'\u2713'}
+            <ThemedText
+              style={[
+                styles.checkmark,
+                { color: selected ? colors.surface : colors.primary },
+              ]}
+            >
+              {"\u2713"}
             </ThemedText>
           )}
         </View>
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText
+          type="small"
+          style={{ color: selected ? colors.surface : undefined }}
+        >
           {description}
         </ThemedText>
       </View>
-    </Pressable>
+    </NeumorphicPressable>
   );
 }
 
@@ -128,6 +150,7 @@ export default function NavbarPositionScreen() {
   const themeName = useResolvedThemeName();
   const colors = Colors[themeName];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleSelect = useCallback(
     (pos: NavbarPosition) => {
@@ -138,18 +161,32 @@ export default function NavbarPositionScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
+      <View style={styles.safe}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}>
-
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingTop: insets.top + Spacing.four,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           {/* ── Header ── */}
           <View style={styles.header}>
             <Pressable
               onPress={() => router.back()}
-              style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
-              <ThemedText type="default" style={{ color: colors.primary, fontWeight: '600' }}>
-                {'\u2190 Back'}
+              style={({ pressed }) => [
+                styles.backBtn,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <ThemedText
+                type="default"
+                style={{ color: colors.primary, fontWeight: "600" }}
+              >
+                {"\u2190 Back"}
               </ThemedText>
             </Pressable>
             <ThemedText type="title">Navbar Position</ThemedText>
@@ -166,41 +203,49 @@ export default function NavbarPositionScreen() {
           ))}
 
           {/* ── Platform notes ── */}
-          <View style={[styles.notesCard, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
-            <ThemedText type="callout" style={{ fontWeight: '600', marginBottom: Spacing.two }}>
+          <NeumorphicCard style={styles.notesCard}>
+            <ThemedText
+              type="callout"
+              style={{ fontWeight: "600", marginBottom: Spacing.two }}
+            >
               Platform Behavior
             </ThemedText>
 
             <View style={styles.noteRow}>
-              <ThemedText style={styles.noteIcon}>{'\u{1F310}'}</ThemedText>
+              <ThemedText style={styles.noteIcon}>{"\u{1F310}"}</ThemedText>
               <View style={styles.noteBody}>
-                <ThemedText type="small" style={{ fontWeight: '500' }}>
+                <ThemedText type="small" style={{ fontWeight: "500" }}>
                   Web
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Works fully — the tab bar renders at the top or bottom of the page.
+                  Works fully — the tab bar renders at the top or bottom of the
+                  page.
                 </ThemedText>
               </View>
             </View>
 
-            <View style={[styles.noteDivider, { backgroundColor: colors.divider }]} />
+            <View
+              style={[styles.noteDivider, { backgroundColor: colors.divider }]}
+            />
 
             <View style={styles.noteRow}>
-              <ThemedText style={styles.noteIcon}>{'\u{1F4F1}'}</ThemedText>
+              <ThemedText style={styles.noteIcon}>{"\u{1F4F1}"}</ThemedText>
               <View style={styles.noteBody}>
-                <ThemedText type="small" style={{ fontWeight: '500' }}>
+                <ThemedText type="small" style={{ fontWeight: "500" }}>
                   Mobile (iOS / Android)
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Not configurable — mobile uses the platform-native tab bar, which is always at the bottom. This setting applies to web only.
+                  Not configurable — mobile uses the platform-native tab bar,
+                  which is always at the bottom. This setting applies to web
+                  only.
                 </ThemedText>
               </View>
             </View>
-          </View>
+          </NeumorphicCard>
 
           <View style={{ height: Spacing.six }} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -220,7 +265,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   backBtn: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.half,
     marginLeft: -Spacing.half,
@@ -229,38 +274,37 @@ const styles = StyleSheet.create({
   // Cards
   card: {
     borderRadius: Spacing.three,
-    borderWidth: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
 
   // Mock device
   mockDevice: {
     height: 160,
     borderRadius: Spacing.two,
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
   },
   mockTabs: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
   mockTabsBottom: {
     bottom: 0,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(128,128,128,0.15)',
+    borderTopColor: "rgba(128,128,128,0.15)",
   },
   mockTabsTop: {
     top: 0,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(128,128,128,0.15)',
+    borderBottomColor: "rgba(128,128,128,0.15)",
   },
   mockTab: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 3,
   },
   mockDot: {
@@ -274,19 +318,19 @@ const styles = StyleSheet.create({
   },
   mockContent: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: Spacing.four,
     gap: 8,
   },
   mockLine: {
     height: 8,
     borderRadius: 4,
-    width: '80%',
+    width: "80%",
   },
   mockLineShort: {
     height: 8,
     borderRadius: 4,
-    width: '50%',
+    width: "50%",
   },
 
   cardBody: {
@@ -294,24 +338,22 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   checkmark: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   // Notes
   notesCard: {
-    borderRadius: Spacing.three,
-    borderWidth: 1,
     padding: Spacing.three,
     marginTop: Spacing.two,
   },
   noteRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.two,
     paddingVertical: Spacing.two,
   },
@@ -319,7 +361,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 22,
     width: 28,
-    textAlign: 'center',
+    textAlign: "center",
   },
   noteBody: {
     flex: 1,

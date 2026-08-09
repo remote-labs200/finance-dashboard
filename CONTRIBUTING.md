@@ -1,6 +1,6 @@
-# Contributing to SmoothTax
+# Contributing to PaySmooth
 
-Thanks for your interest in contributing to SmoothTax. This document covers
+Thanks for your interest in contributing to PaySmooth. This document covers
 everything you need to know to contribute effectively — from setting up your
 environment to landing a pull request.
 
@@ -40,8 +40,8 @@ be reported to the project maintainers.
 
 ```bash
 # Clone the repo
-git clone https://github.com/<your-org>/smooth-tax
-cd smooth-tax
+git clone https://github.com/<your-org>/paysmooth
+cd paysmooth
 
 # Install dependencies
 npm install
@@ -106,7 +106,7 @@ npx expo start
 
 ## Project Architecture
 
-SmoothTax follows a **layered architecture** with a clear separation of concerns:
+PaySmooth follows a **layered architecture** with a clear separation of concerns:
 
 ```
 src/
@@ -305,7 +305,7 @@ npx jest src/db/account-repo.test.ts
 
 ### Bug Reports
 
-Open a [GitHub Issue](https://github.com/<your-org>/smooth-tax/issues) and
+Open a [GitHub Issue](https://github.com/<your-org>/paysmooth/issues) and
 include:
 
 - **Steps to reproduce** — minimal, complete, verifiable steps
@@ -316,13 +316,13 @@ include:
 
 ### Feature Requests
 
-Open a [GitHub Issue](https://github.com/<your-org>/smooth-tax/issues) with the
+Open a [GitHub Issue](https://github.com/<your-org>/paysmooth/issues) with the
 label `enhancement` and describe:
 
 - **Problem** — what's missing or painful
 - **Proposed solution** — how you'd like it to work
 - **Alternatives considered** — what else could solve the problem
-- **Context** — how this fits into the SmoothTax product direction
+- **Context** — how this fits into the PaySmooth product direction
 
 ### Security Vulnerabilities
 
@@ -336,7 +336,8 @@ see [SECURITY.md](SECURITY.md) for details.
 - Check the [README](README.md) for setup and usage guides.
 - Review the [BLUEPRINT](BLUEPRINT.md) for product direction and architecture
   rationale.
-- Open a [GitHub Discussion](https://github.com/<your-org>/smooth-tax/discussions)
+- Open a [GitHub Discussion](https://github.com/<your-org>/paysmooth/discussions)
   for questions or ideas.
 
-Thank you for contributing to SmoothTax.
+Thank you for contributing to PaySmooth.
+

@@ -1,4 +1,4 @@
-# SmoothTax
+# PaySmooth
 
 **Smooth income. Know your taxes. Freelancer-native.**
 
@@ -9,34 +9,40 @@ Cross-platform React Native + Expo personal finance app for freelancers and solo
 ## Features
 
 ### Income & Expense Tracking
+
 - Multi-currency income/expense with automatic FX normalization
 - AI-assisted categorization from transaction descriptions
 - Receipt OCR — snap a photo, AI extracts merchant/amount/date/tax
 - Manual + recurring transaction templates
 
-### Income Smoothing *(our wedge)*
+### Income Smoothing _(our wedge)_
+
 - Computes a "safe monthly pay-yourself" amount from irregular income
 - Projects dry-month buffer requirements
 - Visual 12-month cash-flow ribbon with buffer health indicator
 
 ### Tax Engine
+
 - Rule-based quarterly estimation per locale (US federal + state)
 - Live recomputation as transactions land
 - Set-aside guidance and quarterly deadline reminders
 - Export-ready Schedule C summary and CSV
 
 ### Multi-Currency
+
 - Native multi-currency income/expense with live FX rates
 - Per-currency account balances with consolidated base-currency net worth
 - All tax math normalised to base currency
 
 ### AI-Powered Insights
+
 - Receipt OCR + data extraction via Supabase Edge Functions
 - Auto-categorization with few-shot learning + user corrections
 - Natural-language Q&A ("Can I pay myself $4k this month?")
 - Cash-flow forecasting based on historical seasonality
 
 ### Cloud Sync & Offline
+
 - Supabase is the source of truth; SQLite is the local cache
 - Instant reads from local cache — zero network round-trips for daily use
 - Offline queue: writes queue locally and flush when connectivity returns
@@ -127,28 +133,28 @@ sequenceDiagram
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Framework** | [Expo SDK 56](https://docs.expo.dev/versions/v56.0.0/) + [React Native 0.85](https://reactnative.dev/) |
-| **Language** | [TypeScript 6.0](https://www.typescriptlang.org/) (strict mode) |
-| **Routing** | [Expo Router](https://docs.expo.dev/router/introduction/) (file-based, typed routes) |
-| **State** | [Zustand](https://github.com/pmndrs/zustand) |
-| **Local Database** | [expo-sqlite](https://docs.expo.dev/versions/latest/sdk/sqlite/) |
-| **Cloud Database** | [Supabase](https://supabase.com/) (PostgreSQL + Row-Level Security) |
-| **Auth** | [Supabase Auth](https://supabase.com/auth) (email/password + OAuth) |
-| **AI** | [Supabase Edge Functions](https://supabase.com/docs/guides/functions) (receipt OCR, categorization, insights) |
-| **Storage** | [Supabase Storage](https://supabase.com/storage) (encrypted receipt images) |
-| **Web Support** | [react-native-web](https://necolas.github.io/react-native-web/) + platform-split `.web.tsx` files |
-| **UI** | Custom themed components (`ThemedText`, `ThemedView`, `AnimatedIcon`) |
-| **Animation** | [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/) |
-| **Gestures** | [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/) |
+| Layer              | Technology                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| **Framework**      | [Expo SDK 56](https://docs.expo.dev/versions/v57.0.0/) + [React Native 0.85](https://reactnative.dev/)        |
+| **Language**       | [TypeScript 6.0](https://www.typescriptlang.org/) (strict mode)                                               |
+| **Routing**        | [Expo Router](https://docs.expo.dev/router/introduction/) (file-based, typed routes)                          |
+| **State**          | [Zustand](https://github.com/pmndrs/zustand)                                                                  |
+| **Local Database** | [expo-sqlite](https://docs.expo.dev/versions/latest/sdk/sqlite/)                                              |
+| **Cloud Database** | [Supabase](https://supabase.com/) (PostgreSQL + Row-Level Security)                                           |
+| **Auth**           | [Supabase Auth](https://supabase.com/auth) (email/password + OAuth)                                           |
+| **AI**             | [Supabase Edge Functions](https://supabase.com/docs/guides/functions) (receipt OCR, categorization, insights) |
+| **Storage**        | [Supabase Storage](https://supabase.com/storage) (encrypted receipt images)                                   |
+| **Web Support**    | [react-native-web](https://necolas.github.io/react-native-web/) + platform-split `.web.tsx` files             |
+| **UI**             | Custom themed components (`ThemedText`, `ThemedView`, `AnimatedIcon`)                                         |
+| **Animation**      | [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/)                                |
+| **Gestures**       | [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/)                      |
 
 ---
 
 ## Project Structure
 
 ```
-smooth-tax/
+paysmooth/
 ├── assets/                         # Static assets (images, fonts, icons)
 │   └── images/                     #  Splash, icon, favicon
 │
@@ -287,8 +293,8 @@ sync_log         (entity, entity_id, user_id, last_synced_at, version, op)
 
 ```bash
 # Clone the repository
-git clone https://github.com/<your-org>/smooth-tax
-cd smooth-tax
+git clone https://github.com/<your-org>/paysmooth
+cd paysmooth
 
 # Install dependencies
 npm install
@@ -299,10 +305,10 @@ cp .env.example .env
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `EXPO_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
-| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Your Supabase **publishable key** (the modern key that replaced the legacy `anon` key) |
+| Variable                               | Required | Description                                                                            |
+| -------------------------------------- | -------- | -------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_SUPABASE_URL`             | Yes      | Your Supabase project URL                                                              |
+| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes      | Your Supabase **publishable key** (the modern key that replaced the legacy `anon` key) |
 
 > **Security note:** Any server-only secrets for the AI Edge Functions (e.g. `OPENAI_API_KEY`, or the **service_role** key) must be set as [Supabase Edge Function secrets](https://supabase.com/docs/guides/functions/secrets) — **never** via `EXPO_PUBLIC_*`. They are not used by the app bundle and must not ship to clients.
 
@@ -331,13 +337,13 @@ npm run web
 
 ## Scripts
 
-| Script | Description |
-|---|---|
-| `npm start` | Start Expo dev server |
-| `npm run ios` | Start dev server targeting iOS |
-| `npm run android` | Start dev server targeting Android |
-| `npm run web` | Start dev server targeting Web |
-| `npm run lint` | Run ESLint |
+| Script             | Description                        |
+| ------------------ | ---------------------------------- |
+| `npm start`        | Start Expo dev server              |
+| `npm run ios`      | Start dev server targeting iOS     |
+| `npm run android`  | Start dev server targeting Android |
+| `npm run web`      | Start dev server targeting Web     |
+| `npm run lint`     | Run ESLint                         |
 | `npx tsc --noEmit` | Type-check without emitting output |
 
 ---
@@ -346,7 +352,7 @@ npm run web
 
 ### Why Cloud-First with SQLite Cache?
 
-Most mobile apps put the source of truth in the cloud with an optional offline cache. SmoothTax does the reverse: **Supabase is the source of truth**, and SQLite is a **read cache + offline write queue**. This means:
+Most mobile apps put the source of truth in the cloud with an optional offline cache. PaySmooth does the reverse: **Supabase is the source of truth**, and SQLite is a **read cache + offline write queue**. This means:
 
 - **Data survives app deletion** — sign in again and everything restores
 - **Instant reads** — no network round-trip for daily dashboard views
@@ -366,3 +372,4 @@ Web uses `.web.tsx` variants of screens to account for different layout behavior
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+

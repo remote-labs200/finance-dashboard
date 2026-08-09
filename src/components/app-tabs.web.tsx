@@ -1,24 +1,24 @@
 import {
-  Tabs,
   TabList,
-  TabTrigger,
-  TabSlot,
-  TabTriggerSlotProps,
   TabListProps,
-} from 'expo-router/ui';
-import { Pressable, View, StyleSheet } from 'react-native';
+  Tabs,
+  TabSlot,
+  TabTrigger,
+  TabTriggerSlotProps,
+} from "expo-router/ui";
+import { Pressable, StyleSheet, View } from "react-native";
 
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
-import NotificationBell from './notification-bell.web';
+import NotificationBell from "./notification-bell.web";
+import { ThemedText } from "./themed-text";
+import { ThemedView } from "./themed-view";
 
-import { useNavbarPosition } from '@/stores/use-ui-prefs';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { useNavbarPosition } from "@/stores/use-ui-prefs";
 
 export default function AppTabs() {
   return (
     <Tabs>
-      <TabSlot style={{ height: '100%' }} />
+      <TabSlot style={{ height: "100%" }} />
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="index" href="/" asChild>
@@ -45,13 +45,21 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+export function TabButton({
+  children,
+  isFocused,
+  ...props
+}: TabTriggerSlotProps) {
   return (
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
-        type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
+        type={isFocused ? "backgroundSelected" : "backgroundElement"}
+        style={styles.tabButtonView}
+      >
+        <ThemedText
+          type="small"
+          themeColor={isFocused ? "text" : "textSecondary"}
+        >
           {children}
         </ThemedText>
       </ThemedView>
@@ -60,36 +68,37 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
- const navbarPosition = useNavbarPosition();
- const isTop = navbarPosition === 'top';
+  const navbarPosition = useNavbarPosition();
+  const isTop = navbarPosition === "top";
 
- return (
-   <View
-     {...props}
-     style={[
-       styles.tabListContainer,
-       isTop ? styles.tabListTop : styles.tabListBottom,
-     ]}>
-     <ThemedView type="backgroundElement" style={styles.innerContainer}>
-       <ThemedText type="smallBold" style={styles.brandText}>
-         SmoothTax
-       </ThemedText>
-       <NotificationBell />
+  return (
+    <View
+      {...props}
+      style={[
+        styles.tabListContainer,
+        isTop ? styles.tabListTop : styles.tabListBottom,
+      ]}
+    >
+      <ThemedView type="backgroundElement" style={styles.innerContainer}>
+        <ThemedText type="smallBold" style={styles.brandText}>
+          PaySmooth
+        </ThemedText>
+        <NotificationBell />
 
-       {props.children}
-     </ThemedView>
-   </View>
- );
+        {props.children}
+      </ThemedView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   tabListContainer: {
-    position: 'absolute',
-    width: '100%',
+    position: "absolute",
+    width: "100%",
     padding: Spacing.three,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
   },
   tabListTop: {
     top: 0,
@@ -101,14 +110,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.five,
     borderRadius: Spacing.five,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flexGrow: 1,
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
   },
   brandText: {
-    marginRight: 'auto',
+    marginRight: "auto",
   },
   pressed: {
     opacity: 0.7,

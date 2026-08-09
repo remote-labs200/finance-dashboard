@@ -6,6 +6,7 @@ import {
   View,
 } from 'react-native';
 import { SymbolView } from 'expo-symbols';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
@@ -17,9 +18,19 @@ interface FallbackProps {
 }
 
 function ErrorFallback({ error, resetError }: FallbackProps) {
+  const insets = useSafeAreaInsets();
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + Spacing.five,
+            paddingBottom: insets.bottom + Spacing.five,
+            paddingLeft: insets.left + Spacing.five,
+            paddingRight: insets.right + Spacing.five,
+          },
+        ]}>
         <SymbolView
           name={{ ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' }}
           size={48}
@@ -109,7 +120,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: Spacing.five,
     gap: Spacing.two,
   },
   icon: {

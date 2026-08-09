@@ -9,7 +9,7 @@
 
 ## Reporting a Vulnerability
 
-SmoothTax handles financial data — tax records, income, expenses, and personal
+PaySmooth handles financial data — tax records, income, expenses, and personal
 information — so security is taken seriously.
 
 If you discover a security vulnerability, **please do not open a public issue**.
@@ -98,4 +98,5 @@ Instead, report it privately by emailing **[INSERT SECURITY EMAIL]**.
 
 For security-related issues: **[INSERT SECURITY EMAIL]**
 
-For general issues or questions, use the project's [GitHub Issues](https://github.com/<your-org>/smooth-tax/issues).
+For general issues or questions, use the project's [GitHub Issues](https://github.com/<your-org>/paysmooth/issues).
+

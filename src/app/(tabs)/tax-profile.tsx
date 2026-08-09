@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -8,46 +10,50 @@ import {
   ScrollView,
   StyleSheet,
   View,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useSQLiteContext } from '@/db/provider';
-import { useAuthStore } from '@/stores/use-auth-store';
-import { useTheme } from '@/hooks/use-theme';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { getPreference, setPreference } from '@/db/preferences-repo';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import {
+  NeumorphicButton,
+  NeumorphicCard,
+  NeumorphicPressable,
+} from "@/components/ui";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { getPreference, setPreference } from "@/db/preferences-repo";
+import { useSQLiteContext } from "@/db/provider";
+import { useTheme } from "@/hooks/use-theme";
+import { useAuthStore } from "@/stores/use-auth-store";
 
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
 
 const FILING_STATUSES = [
-  { value: 'single', label: 'Single' },
-  { value: 'married_joint', label: 'Married (Joint)' },
-  { value: 'married_separate', label: 'Married (Separate)' },
-  { value: 'head_of_household', label: 'Head of Household' },
+  { value: "single", label: "Single" },
+  { value: "married_joint", label: "Married (Joint)" },
+  { value: "married_separate", label: "Married (Separate)" },
+  { value: "head_of_household", label: "Head of Household" },
 ] as const;
 
 const ENTITY_TYPES = [
-  { value: 'sole_prop', label: 'Sole Proprietorship' },
-  { value: 'llc', label: 'LLC' },
-  { value: 's_corp', label: 'S-Corporation' },
+  { value: "sole_prop", label: "Sole Proprietorship" },
+  { value: "llc", label: "LLC" },
+  { value: "s_corp", label: "S-Corporation" },
 ] as const;
 
 const LOCALES = [
-  { value: 'US', label: 'United States (Federal + State)' },
-  { value: 'US_CA', label: 'California' },
-  { value: 'US_TX', label: 'Texas' },
-  { value: 'US_NY', label: 'New York' },
-  { value: 'US_FL', label: 'Florida' },
-  { value: 'US_IL', label: 'Illinois' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'CA', label: 'Canada' },
-  { value: 'AU', label: 'Australia' },
-  { value: 'DE', label: 'Germany' },
+  { value: "US", label: "United States (Federal + State)" },
+  { value: "US_CA", label: "California" },
+  { value: "US_TX", label: "Texas" },
+  { value: "US_NY", label: "New York" },
+  { value: "US_FL", label: "Florida" },
+  { value: "US_IL", label: "Illinois" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "CA", label: "Canada" },
+  { value: "AU", label: "Australia" },
+  { value: "DE", label: "Germany" },
 ] as const;
 
 interface TaxProfileFields {
@@ -65,11 +71,12 @@ export default function TaxProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [fields, setFields] = useState<TaxProfileFields>({
-    filingStatus: 'single',
-    entityType: 'sole_prop',
-    locale: 'US',
+    filingStatus: "single",
+    entityType: "sole_prop",
+    locale: "US",
   });
   const [saving, setSaving] = useState(false);
 
@@ -81,21 +88,23 @@ export default function TaxProfileScreen() {
 
     (async () => {
       const [filingStatus, entityType, locale] = await Promise.all([
-        getPreference(db, user.id, 'tax_filing_status'),
-        getPreference(db, user.id, 'tax_entity_type'),
-        getPreference(db, user.id, 'tax_locale'),
+        getPreference(db, user.id, "tax_filing_status"),
+        getPreference(db, user.id, "tax_entity_type"),
+        getPreference(db, user.id, "tax_locale"),
       ]);
 
       if (!cancelled) {
         setFields({
-          filingStatus: filingStatus || 'single',
-          entityType: entityType || 'sole_prop',
-          locale: locale || 'US',
+          filingStatus: filingStatus || "single",
+          entityType: entityType || "sole_prop",
+          locale: locale || "US",
         });
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [db, user]);
 
   // ── Save ──────────────────────────────────────────────────────────────
@@ -108,9 +117,9 @@ export default function TaxProfileScreen() {
 
     try {
       await Promise.all([
-        setPreference(db, user.id, 'tax_filing_status', fields.filingStatus),
-        setPreference(db, user.id, 'tax_entity_type', fields.entityType),
-        setPreference(db, user.id, 'tax_locale', fields.locale),
+        setPreference(db, user.id, "tax_filing_status", fields.filingStatus),
+        setPreference(db, user.id, "tax_entity_type", fields.entityType),
+        setPreference(db, user.id, "tax_locale", fields.locale),
       ]);
 
       setSaving(false);
@@ -118,8 +127,8 @@ export default function TaxProfileScreen() {
     } catch (err) {
       setSaving(false);
       Alert.alert(
-        'Save Failed',
-        err instanceof Error ? err.message : 'An unexpected error occurred.',
+        "Save Failed",
+        err instanceof Error ? err.message : "An unexpected error occurred.",
       );
     }
   }, [db, user, fields, router]);
@@ -138,28 +147,30 @@ export default function TaxProfileScreen() {
   ) {
     return (
       <View style={styles.selectorGroup}>
-        <ThemedText type="callout" style={styles.fieldLabel}>{label}</ThemedText>
+        <ThemedText type="callout" style={styles.fieldLabel}>
+          {label}
+        </ThemedText>
         <View style={styles.chipRow}>
           {options.map((opt) => (
-            <Pressable
+            <NeumorphicPressable
               key={opt.value}
+              inset={selected === opt.value}
               onPress={() => onSelect(opt.value)}
-              style={[
-                styles.chip,
-                {
-                  borderColor: selected === opt.value ? theme.primary : theme.divider,
-                  backgroundColor: selected === opt.value ? theme.primary + '15' : 'transparent',
-                },
-              ]}>
+              style={styles.chip}
+            >
               <ThemedText
                 type="small"
                 style={{
-                  color: selected === opt.value ? theme.primary : theme.textSecondary,
-                  fontWeight: selected === opt.value ? '600' : '400',
-                }}>
+                  color:
+                    selected === opt.value
+                      ? theme.primary
+                      : theme.textSecondary,
+                  fontWeight: selected === opt.value ? "600" : "400",
+                }}
+              >
                 {opt.label}
               </ThemedText>
-            </Pressable>
+            </NeumorphicPressable>
           ))}
         </View>
       </View>
@@ -170,16 +181,37 @@ export default function TaxProfileScreen() {
     <ThemedView style={styles.container}>
       <View style={styles.flex}>
         {/* ── Header bar ─────────────────────────────────────── */}
-        <View style={[styles.header, { backgroundColor: theme.background }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.background,
+              paddingTop: insets.top + Spacing.three,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+        >
           <Pressable
             onPress={() => router.back()}
-            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}>
+            style={({ pressed }) => [
+              styles.backBtn,
+              pressed && { opacity: 0.6 },
+            ]}
+          >
             <SymbolView
-              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+              name={{
+                ios: "chevron.left",
+                android: "arrow_back",
+                web: "arrow_back",
+              }}
               size={22}
               tintColor={theme.primary}
             />
-            <ThemedText type="default" style={{ color: theme.primary, fontWeight: '500' }}>
+            <ThemedText
+              type="default"
+              style={{ color: theme.primary, fontWeight: "500" }}
+            >
               Account
             </ThemedText>
           </Pressable>
@@ -191,30 +223,58 @@ export default function TaxProfileScreen() {
         {/* ── Scrollable form ────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
+        >
           <ScrollView
-            contentContainerStyle={styles.scroll}
+            contentContainerStyle={[
+              styles.scroll,
+              {
+                paddingLeft: insets.left + Spacing.four,
+                paddingRight: insets.right + Spacing.four,
+                paddingBottom: insets.bottom + Spacing.six,
+              },
+            ]}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
-
+            showsVerticalScrollIndicator={false}
+          >
             {/* Filing Status */}
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              {renderSelector('Filing Status', FILING_STATUSES, fields.filingStatus as any, (v) => update({ filingStatus: v }))}
-            </View>
+            <NeumorphicCard>
+              {renderSelector(
+                "Filing Status",
+                FILING_STATUSES,
+                fields.filingStatus as any,
+                (v) => update({ filingStatus: v }),
+              )}
+            </NeumorphicCard>
 
             {/* Entity Type */}
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              {renderSelector('Entity Type', ENTITY_TYPES, fields.entityType as any, (v) => update({ entityType: v }))}
-            </View>
+            <NeumorphicCard>
+              {renderSelector(
+                "Entity Type",
+                ENTITY_TYPES,
+                fields.entityType as any,
+                (v) => update({ entityType: v }),
+              )}
+            </NeumorphicCard>
 
             {/* Tax Locale */}
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              {renderSelector('Tax Jurisdiction', LOCALES, fields.locale as any, (v) => update({ locale: v }))}
-              <ThemedText type="small" themeColor="textTertiary" style={{ marginTop: Spacing.half }}>
-                Your tax jurisdiction determines the tax brackets, deduction rules, and quarterly due dates used for estimation.
+            <NeumorphicCard>
+              {renderSelector(
+                "Tax Jurisdiction",
+                LOCALES,
+                fields.locale as any,
+                (v) => update({ locale: v }),
+              )}
+              <ThemedText
+                type="small"
+                themeColor="textTertiary"
+                style={{ marginTop: Spacing.half }}
+              >
+                Your tax jurisdiction determines the tax brackets, deduction
+                rules, and quarterly due dates used for estimation.
               </ThemedText>
-            </View>
+            </NeumorphicCard>
 
             {/* Spacer for bottom safety */}
             <View style={{ height: Spacing.six }} />
@@ -222,19 +282,24 @@ export default function TaxProfileScreen() {
         </KeyboardAvoidingView>
 
         {/* ── Save button (sticky footer) ──────────────────────── */}
-        <View style={[styles.footer, { borderTopColor: theme.divider, backgroundColor: theme.background }]}>
-          <Pressable
+        <View
+          style={[
+            styles.footer,
+            {
+              borderTopColor: theme.divider,
+              backgroundColor: theme.background,
+            },
+          ]}
+        >
+          <NeumorphicButton
+            variant="primary"
             onPress={handleSave}
             disabled={saving}
-            style={({ pressed }) => [
-              styles.saveBtn, { backgroundColor: theme.primary },
-              pressed && { opacity: 0.8 },
-              saving && { opacity: 0.6 },
-            ]}>
-            <ThemedText type="default" style={{ color: theme.primaryText, fontWeight: '600' }}>
-              {saving ? 'Saving\u2026' : 'Save Changes'}
-            </ThemedText>
-          </Pressable>
+            style={saving ? { opacity: 0.6 } : undefined}
+            textStyle={{ color: theme.primaryText, fontWeight: "600" }}
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </NeumorphicButton>
         </View>
       </View>
     </ThemedView>
@@ -257,10 +322,10 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.half,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingVertical: Spacing.one,
   },
 
@@ -269,32 +334,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
     gap: Spacing.three,
   },
 
   /* Card */
   card: {
-    borderRadius: Spacing.three,
-    borderWidth: 1,
     padding: Spacing.four,
     gap: Spacing.two,
   },
 
   /* Selector */
   selectorGroup: { gap: Spacing.one },
-  fieldLabel: { fontWeight: '600', fontSize: 15 },
+  fieldLabel: { fontWeight: "600", fontSize: 15 },
   chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.one,
   },
   chip: {
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.two,
-    borderWidth: 1,
+    borderRadius: 12,
   },
 
   /* Footer */
@@ -302,11 +364,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  saveBtn: {
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

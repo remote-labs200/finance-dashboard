@@ -3,5 +3,6 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "emulator.emulatorPath": "C:\\Users\\maroe\\AppData\\Local\\Android\\Sdk/emulator"
 }

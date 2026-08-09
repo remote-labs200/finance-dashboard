@@ -1,17 +1,13 @@
-import { useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
+import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { useRouter } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ---------------------------------------------------------------------------
 // Horizon chip
@@ -30,29 +26,28 @@ function HorizonChip({
 }) {
   const theme = useTheme();
   return (
-    <Pressable
+    <NeumorphicPressable
+      inset={selected}
       onPress={onSelect}
-      style={[
-        styles.horizonCard,
-        {
-          borderColor: selected ? theme.primary : theme.cardBorder,
-          backgroundColor: selected ? `${theme.primary}08` : theme.card,
-        },
-      ]}>
+      style={styles.horizonCard}
+    >
       <View style={styles.horizonTop}>
         <ThemedText
           type="default"
           style={{
-            fontWeight: '600',
+            fontWeight: "600",
             fontSize: 18,
             color: selected ? theme.primary : theme.text,
-          }}>
+          }}
+        >
           {label}
         </ThemedText>
         {selected && (
-          <View style={[styles.checkCircle, { backgroundColor: theme.primary }]}>
+          <View
+            style={[styles.checkCircle, { backgroundColor: theme.primary }]}
+          >
             <SymbolView
-              name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+              name={{ ios: "checkmark", android: "check", web: "check" }}
               size={12}
               tintColor={theme.primaryText}
             />
@@ -62,7 +57,7 @@ function HorizonChip({
       <ThemedText type="small" themeColor="textSecondary">
         {sublabel}
       </ThemedText>
-    </Pressable>
+    </NeumorphicPressable>
   );
 }
 
@@ -71,12 +66,12 @@ function HorizonChip({
 // ---------------------------------------------------------------------------
 
 const FORECAST_MONTHS = [
-  { month: 'Aug 2026', income: 8500, expenses: 3200, balance: 5300 },
-  { month: 'Sep 2026', income: 8500, expenses: 3100, balance: 5400 },
-  { month: 'Oct 2026', income: 8200, expenses: 3500, balance: 4700 },
-  { month: 'Nov 2026', income: 8000, expenses: 3400, balance: 4600 },
-  { month: 'Dec 2026', income: 9500, expenses: 4200, balance: 5300 },
-  { month: 'Jan 2027', income: 8500, expenses: 3300, balance: 5200 },
+  { month: "Aug 2026", income: 8500, expenses: 3200, balance: 5300 },
+  { month: "Sep 2026", income: 8500, expenses: 3100, balance: 5400 },
+  { month: "Oct 2026", income: 8200, expenses: 3500, balance: 4700 },
+  { month: "Nov 2026", income: 8000, expenses: 3400, balance: 4600 },
+  { month: "Dec 2026", income: 9500, expenses: 4200, balance: 5300 },
+  { month: "Jan 2027", income: 8500, expenses: 3300, balance: 5200 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -86,6 +81,7 @@ const FORECAST_MONTHS = [
 export default function CashFlowForecastingScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [horizon, setHorizon] = useState<3 | 6 | 12>(6);
   const [includeTaxReserve, setIncludeTaxReserve] = useState(true);
@@ -107,12 +103,25 @@ export default function CashFlowForecastingScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
+      <View style={styles.safe}>
         {/* Header */}
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + Spacing.three,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+        >
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <SymbolView
-              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+              name={{
+                ios: "chevron.left",
+                android: "arrow_back",
+                web: "arrow_back",
+              }}
               size={20}
               tintColor={theme.primary}
             />
@@ -122,13 +131,25 @@ export default function CashFlowForecastingScreen() {
           </ThemedText>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+        >
           {/* Forecast horizon */}
           <View style={styles.section}>
             <ThemedText type="callout" style={styles.sectionTitle}>
               Forecast Horizon
             </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.sectionSub}>
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.sectionSub}
+            >
               How far ahead would you like to project your cash flow?
             </ThemedText>
             {([3, 6, 12] as const).map((h) => (
@@ -137,10 +158,10 @@ export default function CashFlowForecastingScreen() {
                 label={`${h} Months`}
                 sublabel={
                   h === 3
-                    ? 'Short-term view for immediate planning.'
+                    ? "Short-term view for immediate planning."
                     : h === 6
-                      ? 'Medium-term view covering two tax quarters.'
-                      : 'Annual view for full fiscal year planning.'
+                      ? "Medium-term view covering two tax quarters."
+                      : "Annual view for full fiscal year planning."
                 }
                 selected={horizon === h}
                 onSelect={() => setHorizon(h)}
@@ -153,80 +174,113 @@ export default function CashFlowForecastingScreen() {
             <ThemedText type="callout" style={styles.sectionTitle}>
               Assumptions
             </ThemedText>
-            <View style={[styles.card, { borderColor: theme.cardBorder, backgroundColor: theme.card }]}>
-              <Pressable
+            <NeumorphicCard style={styles.card}>
+              <NeumorphicPressable
+                inset={includeTaxReserve}
                 onPress={() => setIncludeTaxReserve((p) => !p)}
-                style={styles.assumptionRow}>
+                style={styles.assumptionRow}
+              >
                 <SymbolView
                   name={
                     includeTaxReserve
-                      ? ({ ios: 'checkmark.square.fill', android: 'check_box', web: 'check_box' } as const)
-                      : ({ ios: 'square', android: 'check_box_outline_blank', web: 'check_box_outline_blank' } as const)
+                      ? ({
+                          ios: "checkmark.square.fill",
+                          android: "check_box",
+                          web: "check_box",
+                        } as const)
+                      : ({
+                          ios: "square",
+                          android: "check_box_outline_blank",
+                          web: "check_box_outline_blank",
+                        } as const)
                   }
                   size={22}
-                  tintColor={includeTaxReserve ? theme.primary : theme.placeholder}
+                  tintColor={
+                    includeTaxReserve ? theme.primary : theme.placeholder
+                  }
                 />
                 <View style={styles.assumptionBody}>
-                  <ThemedText type="default" style={{ fontWeight: '500' }}>
+                  <ThemedText type="default" style={{ fontWeight: "500" }}>
                     Include Tax Reserve
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
                     Subtract estimated tax set-aside from monthly projections.
                   </ThemedText>
                 </View>
-              </Pressable>
-              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
-              <Pressable
+              </NeumorphicPressable>
+              <View
+                style={[styles.divider, { backgroundColor: theme.divider }]}
+              />
+              <NeumorphicPressable
+                inset={includeBuffer}
                 onPress={() => setIncludeBuffer((p) => !p)}
-                style={styles.assumptionRow}>
+                style={styles.assumptionRow}
+              >
                 <SymbolView
                   name={
                     includeBuffer
-                      ? ({ ios: 'checkmark.square.fill', android: 'check_box', web: 'check_box' } as const)
-                      : ({ ios: 'square', android: 'check_box_outline_blank', web: 'check_box_outline_blank' } as const)
+                      ? ({
+                          ios: "checkmark.square.fill",
+                          android: "check_box",
+                          web: "check_box",
+                        } as const)
+                      : ({
+                          ios: "square",
+                          android: "check_box_outline_blank",
+                          web: "check_box_outline_blank",
+                        } as const)
                   }
                   size={22}
                   tintColor={includeBuffer ? theme.primary : theme.placeholder}
                 />
                 <View style={styles.assumptionBody}>
-                  <ThemedText type="default" style={{ fontWeight: '500' }}>
+                  <ThemedText type="default" style={{ fontWeight: "500" }}>
                     Include Dry-Month Buffer
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
                     Maintain minimum cash reserve for low-income months.
                   </ThemedText>
                 </View>
-              </Pressable>
-            </View>
+              </NeumorphicPressable>
+            </NeumorphicCard>
           </View>
 
           {/* Summary */}
-          <View
-            style={[
-              styles.summaryCard,
-              { borderColor: theme.cardBorder, backgroundColor: theme.card },
-            ]}>
-            <ThemedText type="callout" style={{ fontWeight: '600', marginBottom: Spacing.two }}>
+          <NeumorphicCard style={styles.summaryCard}>
+            <ThemedText
+              type="callout"
+              style={{ fontWeight: "600", marginBottom: Spacing.two }}
+            >
               {horizon}-Month Projection
             </ThemedText>
             <View style={styles.summaryRow}>
               <ThemedText type="default" themeColor="textSecondary">
                 Projected Income
               </ThemedText>
-              <ThemedText type="default" style={{ fontWeight: '600', color: theme.success }}>
+              <ThemedText
+                type="default"
+                style={{ fontWeight: "600", color: theme.success }}
+              >
                 ${totals.income.toLocaleString()}
               </ThemedText>
             </View>
-            <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+            <View
+              style={[styles.divider, { backgroundColor: theme.divider }]}
+            />
             <View style={styles.summaryRow}>
               <ThemedText type="default" themeColor="textSecondary">
                 Projected Expenses
               </ThemedText>
-              <ThemedText type="default" style={{ fontWeight: '600', color: theme.danger }}>
+              <ThemedText
+                type="default"
+                style={{ fontWeight: "600", color: theme.danger }}
+              >
                 ${totals.expenses.toLocaleString()}
               </ThemedText>
             </View>
-            <View style={[styles.divider, { backgroundColor: theme.divider }]} />
+            <View
+              style={[styles.divider, { backgroundColor: theme.divider }]}
+            />
             <View style={styles.summaryRow}>
               <ThemedText type="default" themeColor="textSecondary">
                 Net Cash Flow
@@ -234,14 +288,15 @@ export default function CashFlowForecastingScreen() {
               <ThemedText
                 type="default"
                 style={{
-                  fontWeight: '700',
+                  fontWeight: "700",
                   fontSize: 18,
                   color: totals.net >= 0 ? theme.success : theme.danger,
-                }}>
+                }}
+              >
                 ${totals.net.toLocaleString()}
               </ThemedText>
             </View>
-          </View>
+          </NeumorphicCard>
 
           {/* Visual bar chart */}
           <View style={styles.section}>
@@ -270,7 +325,8 @@ export default function CashFlowForecastingScreen() {
                   </View>
                   <ThemedText
                     type="small"
-                    style={[styles.barValue, { color: barColor }]}>
+                    style={[styles.barValue, { color: barColor }]}
+                  >
                     ${m.balance.toLocaleString()}
                   </ThemedText>
                 </View>
@@ -281,18 +337,23 @@ export default function CashFlowForecastingScreen() {
           {/* Info */}
           <View style={styles.infoBox}>
             <SymbolView
-              name={{ ios: 'info.circle', android: 'info', web: 'info' }}
+              name={{ ios: "info.circle", android: "info", web: "info" }}
               size={16}
               tintColor={theme.primary}
             />
-            <ThemedText type="small" themeColor="textSecondary" style={styles.infoText}>
-              Forecasts are based on historical income and expense patterns. Actual results may vary.
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.infoText}
+            >
+              Forecasts are based on historical income and expense patterns.
+              Actual results may vary.
             </ThemedText>
           </View>
 
           <View style={{ height: BottomTabInset + Spacing.six }} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ThemedView>
   );
 }
@@ -305,8 +366,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.two,
@@ -317,46 +378,44 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: Spacing.four,
     maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    width: '100%',
+    alignSelf: "center",
+    width: "100%",
     gap: Spacing.three,
   },
   section: {
     gap: Spacing.one,
   },
   sectionTitle: {
-    fontWeight: '600',
+    fontWeight: "600",
   },
   sectionSub: {
     lineHeight: 18,
   },
   horizonCard: {
     padding: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
     gap: Spacing.one,
   },
   horizonTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   checkCircle: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 'auto',
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: "auto",
   },
   card: {
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
   },
   assumptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.one,
+    borderRadius: 12,
     gap: Spacing.two,
   },
   assumptionBody: {
@@ -368,30 +427,28 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     padding: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
   },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: Spacing.one,
   },
   barRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.two,
     paddingVertical: Spacing.half,
   },
   barLabel: {
     width: 65,
-    textAlign: 'right',
+    textAlign: "right",
   },
   barTrack: {
     flex: 1,
     height: 20,
     borderRadius: 4,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   bar: {
     borderRadius: 4,
@@ -399,14 +456,14 @@ const styles = StyleSheet.create({
   },
   barValue: {
     width: 70,
-    textAlign: 'right',
-    fontWeight: '500',
+    textAlign: "right",
+    fontWeight: "500",
   },
   infoBox: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.two,
     padding: Spacing.three,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   infoText: { flex: 1, lineHeight: 18 },
 });

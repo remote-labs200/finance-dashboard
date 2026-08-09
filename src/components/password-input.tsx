@@ -1,10 +1,17 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from "expo-symbols";
+import { useState } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+  type TextInputProps,
+} from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/use-theme';
+import { ThemedText } from "@/components/themed-text";
+import { Spacing } from "@/constants/theme";
+import { useNeumorphism, useThemeColors } from "@/hooks/use-theme";
 
 export interface PasswordRules {
   minLength?: boolean;
@@ -23,13 +30,18 @@ function validatePassword(password: string): PasswordRules {
 }
 
 function getValidationMessage(rules: PasswordRules): string | null {
-  if (rules.minLength && rules.hasNumber && rules.hasUppercase && rules.hasSymbol) {
+  if (
+    rules.minLength &&
+    rules.hasNumber &&
+    rules.hasUppercase &&
+    rules.hasSymbol
+  ) {
     return null;
   }
-  return 'Password does not meet requirements';
+  return "Password does not meet requirements";
 }
 
-interface PasswordInputProps extends Omit<TextInputProps, 'secureTextEntry'> {
+interface PasswordInputProps extends Omit<TextInputProps, "secureTextEntry"> {
   showValidation?: boolean;
 }
 
@@ -40,14 +52,27 @@ export function PasswordInput({
   ...rest
 }: PasswordInputProps) {
   const [secureEntry, setSecureEntry] = useState(true);
-  const rules = validatePassword(value ?? '');
+  const rules = validatePassword(value ?? "");
   const colors = useThemeColors();
+  const neo = useNeumorphism();
 
   return (
     <View>
-      <View style={[styles.inputRow, { borderColor: colors.divider }]}>
+      <View
+        style={[
+          styles.inputRow,
+          {
+            backgroundColor: colors.card ?? colors.background,
+            shadowColor: neo.shadowDark,
+            ...Platform.select({
+              android: { elevation: 2 },
+              web: { boxShadow: neo.insetDeep },
+            }),
+          },
+        ]}
+      >
         <SymbolView
-          name={{ ios: 'lock.fill', android: 'lock', web: 'lock' }}
+          name={{ ios: "lock.fill", android: "lock", web: "lock" }}
           size={18}
           tintColor={colors.textTertiary}
         />
@@ -62,12 +87,17 @@ export function PasswordInput({
         <Pressable
           onPress={() => setSecureEntry((prev) => !prev)}
           style={styles.eyeButton}
-          hitSlop={8}>
+          hitSlop={8}
+        >
           <SymbolView
             name={
               secureEntry
-                ? { ios: 'eye', android: 'visibility', web: 'visibility' }
-                : { ios: 'eye.slash', android: 'visibility_off', web: 'visibility_off' }
+                ? { ios: "eye", android: "visibility", web: "visibility" }
+                : {
+                    ios: "eye.slash",
+                    android: "visibility_off",
+                    web: "visibility_off",
+                  }
             }
             size={20}
             tintColor={colors.textTertiary}
@@ -79,8 +109,14 @@ export function PasswordInput({
         <View style={styles.validationContainer}>
           <ValidationRule label="At least 8 characters" met={rules.minLength} />
           <ValidationRule label="At least one number" met={rules.hasNumber} />
-          <ValidationRule label="At least one uppercase letter" met={rules.hasUppercase} />
-          <ValidationRule label="At least one symbol (!@#$...)" met={rules.hasSymbol} />
+          <ValidationRule
+            label="At least one uppercase letter"
+            met={rules.hasUppercase}
+          />
+          <ValidationRule
+            label="At least one symbol (!@#$...)"
+            met={rules.hasSymbol}
+          />
         </View>
       ) : null}
     </View>
@@ -96,8 +132,16 @@ function ValidationRule({ label, met }: { label: string; met?: boolean }) {
       <SymbolView
         name={
           met
-            ? { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }
-            : { ios: 'circle', android: 'radio_button_unchecked', web: 'radio_button_unchecked' }
+            ? {
+                ios: "checkmark.circle.fill",
+                android: "check_circle",
+                web: "check_circle",
+              }
+            : {
+                ios: "circle",
+                android: "radio_button_unchecked",
+                web: "radio_button_unchecked",
+              }
         }
         size={14}
         tintColor={color}
@@ -111,9 +155,8 @@ function ValidationRule({ label, met }: { label: string; met?: boolean }) {
 
 const styles = StyleSheet.create({
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 14,
     paddingHorizontal: Spacing.three,
     gap: Spacing.two,
@@ -125,16 +168,16 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     padding: Spacing.two,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   validationContainer: {
     marginTop: Spacing.one,
     gap: 4,
   },
   ruleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   ruleLabel: {

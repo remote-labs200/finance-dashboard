@@ -3,7 +3,7 @@
  * These types mirror the Supabase schema and are used for local database operations.
  */
 
-export type AccountType = 'checking' | 'savings' | 'credit' | 'cash' | 'other';
+export type AccountType = "checking" | "savings" | "credit" | "cash" | "other";
 
 export interface LocalUser {
   id: string;
@@ -125,7 +125,7 @@ export const MIGRATIONS = [
     amount_cents INTEGER NOT NULL,
     currency_code TEXT NOT NULL,
     note TEXT,
-    client_id TEXT,
+    client_id TEXT REFERENCES clients(id) ON DELETE SET NULL,
     date TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL

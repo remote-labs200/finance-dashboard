@@ -1,5 +1,5 @@
 -- ============================================================================
--- SmoothTax — Supabase Initial Schema
+-- PaySmooth — Supabase Initial Schema
 -- Mirrors the local SQLite schema for cloud sync.
 -- Run this in the Supabase SQL Editor (https://supabase.com/dashboard/project/_/sql)
 -- or via `supabase migration up` with the Supabase CLI.

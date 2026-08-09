@@ -1,16 +1,20 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { NeumorphicCard } from '@/components/ui';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { StyleSheet, SafeAreaView } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CategoriesScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="title">Categories</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          Category management will go here
-        </ThemedText>
+        <NeumorphicCard style={styles.card}>
+          <ThemedText type="title">Categories</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Category management will go here
+          </ThemedText>
+        </NeumorphicCard>
       </SafeAreaView>
     </ThemedView>
   );
@@ -26,5 +30,9 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     gap: Spacing.three,
+  },
+  card: {
+    alignItems: 'center',
+    gap: Spacing.two,
   },
 });
