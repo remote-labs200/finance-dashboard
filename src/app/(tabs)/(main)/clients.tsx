@@ -27,6 +27,7 @@ import {
   type ClientSummary,
 } from "@/db/client-repo";
 import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
 import { findTransactionsByUser } from "@/db/transaction-repo";
 import { useThemeColors } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
@@ -44,6 +45,7 @@ export default function ClientsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<ClientSummary["client"] | null>(null);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
 
   // Add/edit form state
   const [name, setName] = useState("");
@@ -68,6 +70,17 @@ export default function ClientsScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getPreference(db, user.id, "base_currency").then((value) => {
+      if (mounted) setBaseCurrency(value);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -118,7 +131,7 @@ export default function ClientsScreen() {
           company: company.trim() || undefined,
           phone: phone.trim() || undefined,
           notes: notes.trim() || undefined,
-          currencyCode: "USD",
+          currencyCode: baseCurrency,
         });
       }
       setShowAdd(false);
@@ -129,7 +142,7 @@ export default function ClientsScreen() {
         e instanceof Error ? e.message : "Could not save client",
       );
     }
-  }, [db, user, editing, name, email, company, phone, notes, load]);
+  }, [db, user, editing, name, email, company, phone, notes, load, baseCurrency]);
 
   const confirmDelete = useCallback(
     (c: ClientSummary["client"]) => {

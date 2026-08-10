@@ -1,7 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,11 +24,13 @@ import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { findAccountsByUser } from "@/db/account-repo";
 import { findCategoriesByUser } from "@/db/category-repo";
 import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
 import { createTransaction } from "@/db/transaction-repo";
 import { useThemeColors } from "@/hooks/use-theme";
 import { aiExtractReceipt, isAIEnabled } from "@/lib/ai-service";
 import { formatCurrency } from "@/lib/format";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { uploadReceiptImage } from "@/lib/receipt-storage";
 
 interface ReceiptData {
   merchant: string | null;
@@ -37,6 +39,7 @@ interface ReceiptData {
   items: Array<{ description: string; amount: number }>;
   tax: number | null;
   total: number | null;
+  currency: string;
 }
 
 export default function ScanScreen() {
@@ -46,8 +49,20 @@ export default function ScanScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getPreference(db, user.id, "base_currency").then((value) => {
+      if (mounted) setBaseCurrency(value);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user]);
 
   const takePhoto = useCallback(async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -111,9 +126,20 @@ export default function ScanScreen() {
 
     setLoading(true);
     try {
-      // In a real implementation, we'd upload the image to Supabase Storage first
-      // For now, we use the local URI
-      const extraction = await aiExtractReceipt(uri);
+      // Upload the image to Supabase Storage first — edge functions cannot
+      // read device-local URIs, so we pass a public storage URL instead.
+      const imageUrl = user ? await uploadReceiptImage(uri, user.id, base64) : null;
+
+      if (!imageUrl) {
+        Alert.alert(
+          "Upload failed",
+          "Could not upload the receipt image. The OCR edge function needs a public URL to fetch the image.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      const extraction = await aiExtractReceipt(imageUrl);
       if (extraction) {
         setReceiptData(extraction);
       } else {
@@ -151,9 +177,9 @@ export default function ScanScreen() {
     await createTransaction(db, {
       userId: user.id,
       amountCents: -Math.abs(amountCents), // Expenses are negative
-      currencyCode: "USD",
-      accountId: accounts[0]?.id ?? "",
-      categoryId: expenseCategory?.id ?? "",
+      currencyCode: receiptData.currency ?? baseCurrency,
+      accountId: accounts[0]?.id ?? undefined,
+      categoryId: expenseCategory?.id ?? undefined,
       note: `[Receipt] ${receiptData.merchant ?? "Scanned"}`,
       date: receiptData.date ?? new Date().toISOString().split("T")[0],
     });
@@ -161,7 +187,7 @@ export default function ScanScreen() {
     Alert.alert("Saved", "Transaction created from receipt.", [
       { text: "OK", onPress: () => router.back() },
     ]);
-  }, [db, user, receiptData, router]);
+  }, [db, user, receiptData, router, baseCurrency]);
 
   const reset = useCallback(() => {
     setImageUri(null);
@@ -277,7 +303,7 @@ export default function ScanScreen() {
                   <ThemedText type="default">
                     {formatCurrency(
                       Math.round(receiptData.amount * 100),
-                      "USD",
+                      receiptData.currency ?? baseCurrency,
                     )}
                   </ThemedText>
                 </View>
@@ -298,7 +324,7 @@ export default function ScanScreen() {
                     Tax
                   </ThemedText>
                   <ThemedText type="default">
-                    {formatCurrency(Math.round(receiptData.tax * 100), "USD")}
+                    {formatCurrency(Math.round(receiptData.tax * 100), receiptData.currency ?? baseCurrency)}
                   </ThemedText>
                 </View>
               )}
@@ -315,7 +341,7 @@ export default function ScanScreen() {
                     Total
                   </ThemedText>
                   <ThemedText type="headline" style={{ color: colors.danger }}>
-                    {formatCurrency(Math.round(receiptData.total * 100), "USD")}
+                    {formatCurrency(Math.round(receiptData.total * 100), receiptData.currency ?? baseCurrency)}
                   </ThemedText>
                 </View>
               )}
@@ -336,7 +362,7 @@ export default function ScanScreen() {
                         {item.description}
                       </ThemedText>
                       <ThemedText type="small">
-                        {formatCurrency(Math.round(item.amount * 100), "USD")}
+                        {formatCurrency(Math.round(item.amount * 100), receiptData.currency ?? baseCurrency)}
                       </ThemedText>
                     </View>
                   ))}

@@ -23,6 +23,7 @@ import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { findAccountsByUser } from "@/db/account-repo";
 import { useSQLiteContext } from "@/db/provider";
 import { Account, Transaction } from "@/db/schema";
+import { getPreference } from "@/db/preferences-repo";
 import {
   findTransactionsByUser,
   getMonthlySummary,
@@ -34,7 +35,11 @@ import {
   aggregateMonthlyIncomes,
   computeSmoothing,
 } from "@/lib/income-smoothing";
-import { daysUntilNextDeadline, estimateAnnualTax } from "@/lib/tax-engine";
+import {
+  daysUntilNextDeadline,
+  estimateAnnualTax,
+  toFilingStatus,
+} from "@/lib/tax-engine";
 import { generateForecast } from "@/lib/forecast-service";
 import { useAuthStore } from "@/stores/use-auth-store";
 
@@ -104,6 +109,7 @@ export default function DashboardScreen() {
     trend: "up" | "down" | "stable";
     trendPercent: number;
   } | null>(null);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -123,6 +129,12 @@ export default function DashboardScreen() {
       setAccounts(accs);
       setRecentTxns(txns);
 
+      const [filingStatus, baseCurrency] = await Promise.all([
+        getPreference(db, user.id, "tax_filing_status"),
+        getPreference(db, user.id, "base_currency"),
+      ]);
+      setBaseCurrency(baseCurrency);
+
       // Compute tax estimate
       const allTxns = await findTransactionsByUser(db, user.id, { limit: 500 });
       const ytdIncome = allTxns
@@ -135,7 +147,7 @@ export default function DashboardScreen() {
       const taxResult = estimateAnnualTax({
         ytdIncomeCents: ytdIncome,
         ytdDeductionsCents: ytdExpenses,
-        filingStatus: "single",
+        filingStatus: toFilingStatus(filingStatus),
         taxYear: year,
         currentQuarter: Math.ceil(month / 3) as 1 | 2 | 3 | 4,
       });
@@ -307,7 +319,7 @@ export default function DashboardScreen() {
                   </ThemedText>
                 </View>
                 <ThemedText type="headline" style={{ color: colors.success }}>
-                  {formatCurrency(smoothing?.safePayCents ?? 0, "USD")}
+                  {formatCurrency(smoothing?.safePayCents ?? 0, baseCurrency)}
                 </ThemedText>
                 <View
                   style={[
@@ -343,7 +355,7 @@ export default function DashboardScreen() {
                       style={[styles.legendDot, { backgroundColor: colors.cyan }]}
                     />
                     <ThemedText type="small" themeColor="textSecondary">
-                      Buffered {formatCurrency(bufferedCents, "USD")}
+                      Buffered {formatCurrency(bufferedCents, baseCurrency)}
                     </ThemedText>
                   </View>
                   <View style={styles.legendItem}>
@@ -355,7 +367,7 @@ export default function DashboardScreen() {
                     />
                     <ThemedText type="small" themeColor="textSecondary">
                       Safe to spend{" "}
-                      {formatCurrency(smoothing?.safePayCents ?? 0, "USD")}
+                      {formatCurrency(smoothing?.safePayCents ?? 0, baseCurrency)}
                     </ThemedText>
                   </View>
                 </View>
@@ -377,7 +389,7 @@ export default function DashboardScreen() {
                     title="Quarterly Tax Reserve"
                     value={formatCurrency(
                       taxEstimate?.quarterlyPaymentCents ?? 0,
-                      "USD",
+                      baseCurrency,
                     )}
                     sub={
                       nextDeadline
@@ -393,7 +405,7 @@ export default function DashboardScreen() {
                     }}
                     tintColor={colors.purple}
                     title={"Uninvoiced · Pending Payments"}
-                    value={formatCurrency(pendingCents, "USD")}
+                    value={formatCurrency(pendingCents, baseCurrency)}
                     sub={`${uninvoicedCount} uninvoiced this month`}
                   />
                 </View>
@@ -417,7 +429,7 @@ export default function DashboardScreen() {
                     }}
                     tintColor={colors.cyan}
                     title="Cash Flow Trajectory"
-                    value={formatCurrency(cashFlow?.netCents ?? 0, "USD")}
+                    value={formatCurrency(cashFlow?.netCents ?? 0, baseCurrency)}
                     sub={trendLabel}
                   />
                 </View>
@@ -435,7 +447,7 @@ export default function DashboardScreen() {
                       color: netIncome >= 0 ? colors.success : colors.danger,
                     }}
                   >
-                    {formatCurrency(netIncome, "USD")}
+                    {formatCurrency(netIncome, baseCurrency)}
                   </ThemedText>
                 </NeumorphicCard>
                 <NeumorphicCard style={styles.card}>
@@ -443,7 +455,7 @@ export default function DashboardScreen() {
                     Expenses
                   </ThemedText>
                   <ThemedText type="headline" style={{ color: colors.danger }}>
-                    {formatCurrency(totalExpenses, "USD")}
+                    {formatCurrency(totalExpenses, baseCurrency)}
                   </ThemedText>
                 </NeumorphicCard>
               </View>
@@ -454,7 +466,7 @@ export default function DashboardScreen() {
                     Total Balance
                   </ThemedText>
                   <ThemedText type="headline">
-                    {formatCurrency(totalBalance, "USD")}
+                    {formatCurrency(totalBalance, baseCurrency)}
                   </ThemedText>
                 </NeumorphicCard>
                 <NeumorphicButton
@@ -509,7 +521,7 @@ export default function DashboardScreen() {
                           web: "group",
                         },
                         label: "Clients",
-                        route: "/(tabs)/clients" as const,
+                        route: "/(tabs)/(main)/clients" as const,
                         color: colors.purple,
                       },
                       {
@@ -615,7 +627,7 @@ export default function DashboardScreen() {
                     )}
                   </View>
                   <ThemedText type="headline" style={{ color: colors.warning }}>
-                    {formatCurrency(taxEstimate.quarterlyPaymentCents, "USD")}
+                    {formatCurrency(taxEstimate.quarterlyPaymentCents, baseCurrency)}
                   </ThemedText>
                   <View style={styles.taxBreakdown}>
                     <ThemedText type="small" themeColor="textSecondary">
@@ -625,7 +637,7 @@ export default function DashboardScreen() {
                       SE Tax:{" "}
                       {formatCurrency(
                         taxEstimate.selfEmploymentTaxCents,
-                        "USD",
+                        baseCurrency,
                       )}
                     </ThemedText>
                   </View>
@@ -639,7 +651,7 @@ export default function DashboardScreen() {
                     Safe Monthly Pay
                   </ThemedText>
                   <ThemedText type="headline" style={{ color: colors.success }}>
-                    {formatCurrency(smoothing.safePayCents, "USD")}
+                    {formatCurrency(smoothing.safePayCents, baseCurrency)}
                   </ThemedText>
                   <View style={styles.taxBreakdown}>
                     <ThemedText type="small" themeColor="textSecondary">
@@ -647,7 +659,7 @@ export default function DashboardScreen() {
                     </ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
                       Buffer needed:{" "}
-                      {formatCurrency(smoothing.bufferRequiredCents, "USD")}
+                      {formatCurrency(smoothing.bufferRequiredCents, baseCurrency)}
                     </ThemedText>
                   </View>
                   {smoothing.dryMonths.length > 0 && (
@@ -706,7 +718,7 @@ export default function DashboardScreen() {
               {/* Client Ledger Card */}
               <NeumorphicPressable
                 style={styles.card}
-                onPress={() => router.push("/(tabs)/clients")}
+                onPress={() => router.push("/(tabs)/(main)/clients")}
               >
                 <View style={styles.cardInsightsRow}>
                   <SymbolView

@@ -9,6 +9,7 @@ import { ThemedView } from "@/components/themed-view";
 import { NeumorphicButton, NeumorphicCard } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
 import {
   findTransactionsByUser,
   getMonthlyTotals,
@@ -16,7 +17,7 @@ import {
 } from "@/db/transaction-repo";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency, getMonthName } from "@/lib/format";
-import { estimateAnnualTax } from "@/lib/tax-engine";
+import { estimateAnnualTax, toFilingStatus } from "@/lib/tax-engine";
 import { useAuthStore } from "@/stores/use-auth-store";
 
 export default function ReportsScreen() {
@@ -37,6 +38,7 @@ export default function ReportsScreen() {
     typeof estimateAnnualTax
   > | null>(null);
   const [transactionCount, setTransactionCount] = useState(0);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -63,10 +65,16 @@ export default function ReportsScreen() {
         .filter((t) => t.amountCents < 0)
         .reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
 
+      const [filingStatus, baseCurrency] = await Promise.all([
+        getPreference(db, user.id, "tax_filing_status"),
+        getPreference(db, user.id, "base_currency"),
+      ]);
+      setBaseCurrency(baseCurrency);
+
       const taxResult = estimateAnnualTax({
         ytdIncomeCents: ytdIncome,
         ytdDeductionsCents: ytdExpenses,
-        filingStatus: "single",
+        filingStatus: toFilingStatus(filingStatus),
         taxYear: currentYear,
         currentQuarter: Math.ceil((now.getMonth() + 1) / 3) as 1 | 2 | 3 | 4,
       });
@@ -143,9 +151,9 @@ export default function ReportsScreen() {
 
     let report = `SCHEDULE C SUMMARY - ${currentYear}\n`;
     report += `${"=".repeat(50)}\n\n`;
-    report += `GROSS INCOME: ${formatCurrency(yearSummary.totalIncome, "USD")}\n`;
-    report += `TOTAL EXPENSES: ${formatCurrency(yearSummary.totalExpenses, "USD")}\n`;
-    report += `NET PROFIT: ${formatCurrency(yearSummary.net, "USD")}\n\n`;
+    report += `GROSS INCOME: ${formatCurrency(yearSummary.totalIncome, baseCurrency)}\n`;
+    report += `TOTAL EXPENSES: ${formatCurrency(yearSummary.totalExpenses, baseCurrency)}\n`;
+    report += `NET PROFIT: ${formatCurrency(yearSummary.net, baseCurrency)}\n\n`;
     report += `EXPENSE BREAKDOWN:\n`;
     report += `${"-".repeat(40)}\n`;
 
@@ -154,15 +162,15 @@ export default function ReportsScreen() {
     );
 
     for (const [cat, amount] of sortedExpenses) {
-      report += `${cat.padEnd(30)} ${formatCurrency(amount, "USD").padStart(15)}\n`;
+      report += `${cat.padEnd(30)} ${formatCurrency(amount, baseCurrency).padStart(15)}\n`;
     }
 
     report += `\nTAX ESTIMATE:\n`;
     report += `${"-".repeat(40)}\n`;
-    report += `Self-Employment Tax: ${formatCurrency(taxEstimate.selfEmploymentTaxCents, "USD")}\n`;
-    report += `Federal Income Tax: ${formatCurrency(taxEstimate.federalIncomeTaxCents, "USD")}\n`;
-    report += `Total Estimated Tax: ${formatCurrency(taxEstimate.totalEstimatedTaxCents, "USD")}\n`;
-    report += `Quarterly Payment: ${formatCurrency(taxEstimate.quarterlyPaymentCents, "USD")}\n`;
+    report += `Self-Employment Tax: ${formatCurrency(taxEstimate.selfEmploymentTaxCents, baseCurrency)}\n`;
+    report += `Federal Income Tax: ${formatCurrency(taxEstimate.federalIncomeTaxCents, baseCurrency)}\n`;
+    report += `Total Estimated Tax: ${formatCurrency(taxEstimate.totalEstimatedTaxCents, baseCurrency)}\n`;
+    report += `Quarterly Payment: ${formatCurrency(taxEstimate.quarterlyPaymentCents, baseCurrency)}\n`;
     report += `Effective Rate: ${taxEstimate.effectiveRate.toFixed(1)}%\n`;
 
     const fileName = `schedule-c-${currentYear}.txt`;
@@ -177,7 +185,7 @@ export default function ReportsScreen() {
     } else {
       Alert.alert("Exported", `File saved to: ${fileName}`);
     }
-  }, [db, user, currentYear, yearSummary, taxEstimate]);
+  }, [db, user, currentYear, yearSummary, taxEstimate, baseCurrency]);
 
   return (
     <ThemedView style={styles.container}>
@@ -209,7 +217,7 @@ export default function ReportsScreen() {
                     Gross Income
                   </ThemedText>
                   <ThemedText type="headline" style={{ color: colors.success }}>
-                    {formatCurrency(yearSummary.totalIncome, "USD")}
+                    {formatCurrency(yearSummary.totalIncome, baseCurrency)}
                   </ThemedText>
                 </View>
                 <View style={styles.summaryItem}>
@@ -217,7 +225,7 @@ export default function ReportsScreen() {
                     Total Expenses
                   </ThemedText>
                   <ThemedText type="headline" style={{ color: colors.danger }}>
-                    {formatCurrency(yearSummary.totalExpenses, "USD")}
+                    {formatCurrency(yearSummary.totalExpenses, baseCurrency)}
                   </ThemedText>
                 </View>
               </View>
@@ -230,7 +238,7 @@ export default function ReportsScreen() {
                       yearSummary.net >= 0 ? colors.success : colors.danger,
                   }}
                 >
-                  {formatCurrency(yearSummary.net, "USD")}
+                  {formatCurrency(yearSummary.net, baseCurrency)}
                 </ThemedText>
               </View>
               <ThemedText type="small" themeColor="textSecondary">
@@ -248,20 +256,20 @@ export default function ReportsScreen() {
               <View style={styles.taxRow}>
                 <ThemedText type="default">Self-Employment Tax</ThemedText>
                 <ThemedText type="default">
-                  {formatCurrency(taxEstimate.selfEmploymentTaxCents, "USD")}
+                  {formatCurrency(taxEstimate.selfEmploymentTaxCents, baseCurrency)}
                 </ThemedText>
               </View>
               <View style={styles.taxRow}>
                 <ThemedText type="default">Federal Income Tax</ThemedText>
                 <ThemedText type="default">
-                  {formatCurrency(taxEstimate.federalIncomeTaxCents, "USD")}
+                  {formatCurrency(taxEstimate.federalIncomeTaxCents, baseCurrency)}
                 </ThemedText>
               </View>
               {taxEstimate.stateIncomeTaxCents > 0 && (
                 <View style={styles.taxRow}>
                   <ThemedText type="default">State Income Tax</ThemedText>
                   <ThemedText type="default">
-                    {formatCurrency(taxEstimate.stateIncomeTaxCents, "USD")}
+                    {formatCurrency(taxEstimate.stateIncomeTaxCents, baseCurrency)}
                   </ThemedText>
                 </View>
               )}
@@ -272,7 +280,7 @@ export default function ReportsScreen() {
                   Total Estimated Tax
                 </ThemedText>
                 <ThemedText type="headline" style={{ color: colors.warning }}>
-                  {formatCurrency(taxEstimate.totalEstimatedTaxCents, "USD")}
+                  {formatCurrency(taxEstimate.totalEstimatedTaxCents, baseCurrency)}
                 </ThemedText>
               </View>
               <View style={styles.taxRow}>
@@ -280,7 +288,7 @@ export default function ReportsScreen() {
                   Quarterly Payment
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  {formatCurrency(taxEstimate.quarterlyPaymentCents, "USD")}
+                  {formatCurrency(taxEstimate.quarterlyPaymentCents, baseCurrency)}
                 </ThemedText>
               </View>
               <View style={styles.taxRow}>
@@ -354,7 +362,7 @@ export default function ReportsScreen() {
                         ]}
                       >
                         {m.income > 0
-                          ? `+${formatCurrency(m.income, "USD")}`
+                          ? `+${formatCurrency(m.income, baseCurrency)}`
                           : "-"}
                       </ThemedText>
                       <ThemedText
@@ -365,7 +373,7 @@ export default function ReportsScreen() {
                         ]}
                       >
                         {m.expenses > 0
-                          ? `-${formatCurrency(m.expenses, "USD")}`
+                          ? `-${formatCurrency(m.expenses, baseCurrency)}`
                           : "-"}
                       </ThemedText>
                       <ThemedText
@@ -379,7 +387,7 @@ export default function ReportsScreen() {
                           },
                         ]}
                       >
-                        {formatCurrency(m.net, "USD")}
+                        {formatCurrency(m.net, baseCurrency)}
                       </ThemedText>
                     </View>
                   ))}

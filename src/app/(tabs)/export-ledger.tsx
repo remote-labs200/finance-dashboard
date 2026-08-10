@@ -6,10 +6,15 @@ import {
   NeumorphicPressable,
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
+import type { Transaction } from "@/db/schema";
+import { findTransactionsByUser } from "@/db/transaction-repo";
 import { useTheme } from "@/hooks/use-theme";
-import { useRouter } from "expo-router";
+import { useAuthStore } from "@/stores/use-auth-store";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -19,6 +24,31 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+function escapeCsv(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function formatCents(cents: number, currency: string = "USD"): string {
+  return (Math.abs(cents) / 100).toLocaleString(undefined, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,7 +109,7 @@ const SCOPES: ScopeOption[] = [
   {
     id: "this-year",
     label: "This Year",
-    description: "Transactions from 1 Jan 2026 to today.",
+    description: `Transactions from 1 Jan ${new Date().getFullYear()} to today.`,
   },
   {
     id: "last-quarter",
@@ -92,6 +122,34 @@ const SCOPES: ScopeOption[] = [
     description: "Pick specific start and end dates.",
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Date-range helpers
+// ---------------------------------------------------------------------------
+
+function lastQuarterRange(): { start: string; end: string } {
+  const now = new Date();
+  const quarter = Math.floor(now.getMonth() / 3);
+  const start = new Date(now.getFullYear(), quarter * 3 - 3, 1);
+  const end = new Date(now.getFullYear(), quarter * 3, 0);
+  return {
+    start: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-01`,
+    end: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`,
+  };
+}
+
+function scopeRange(scope: ExportScope): { start: string; end: string } | null {
+  if (scope === "all") return null;
+  if (scope === "this-year") {
+    const year = new Date().getFullYear();
+    return {
+      start: `${year}-01-01`,
+      end: `${year}-12-31`,
+    };
+  }
+  if (scope === "last-quarter") return lastQuarterRange();
+  return null; // custom — not implemented without date picker
+}
 
 // ---------------------------------------------------------------------------
 // Selectable Chip
@@ -185,55 +243,164 @@ export default function ExportLedgerScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const user = useAuthStore((s) => s.user);
 
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("csv");
   const [selectedScope, setSelectedScope] = useState<ExportScope>("all");
   const [isExporting, setIsExporting] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getPreference(db, user.id, "base_currency").then((value) => {
+      if (mounted) setBaseCurrency(value);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user]);
+
+  // Load real transactions for the selected scope (for the summary)
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      (async () => {
+        try {
+          const range = scopeRange(selectedScope);
+          const txs = await findTransactionsByUser(db, user.id, {
+            startDate: range?.start,
+            endDate: range?.end,
+            limit: 5000,
+          });
+          if (!active) return;
+          setTransactions(txs);
+          setLoaded(true);
+        } catch (e: unknown) {
+          if (e instanceof Error && e.message.includes("closed")) return;
+          console.warn("Failed to load transactions for export:", e);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [db, user, selectedScope]),
+  );
+
+  const buildExportContent = useCallback((): string => {
+    const range = scopeRange(selectedScope);
+    const dateRangeLabel =
+      selectedScope === "all"
+        ? "All Time"
+        : selectedScope === "custom"
+          ? "Custom Range"
+          : `${range?.start} – ${range?.end}`;
+
+    if (selectedFormat === "csv") {
+      const header = "Date,Amount,Note,Category,Account,Currency";
+      const rows = transactions.map((t) =>
+        [
+          t.date.slice(0, 10),
+          (t.amountCents / 100).toFixed(2),
+          escapeCsv(t.note ?? ""),
+          escapeCsv(t.categoryName ?? "Uncategorized"),
+          escapeCsv(t.accountName ?? ""),
+          t.currencyCode,
+        ].join(","),
+      );
+      return [header, ...rows].join("\n");
+    }
+
+    // XLSX / PDF fallback: human-readable text summary
+    const totalIncome = transactions
+      .filter((t) => t.amountCents > 0)
+      .reduce((s, t) => s + t.amountCents, 0);
+    const totalExpense = transactions
+      .filter((t) => t.amountCents < 0)
+      .reduce((s, t) => s + -t.amountCents, 0);
+    const net = totalIncome - totalExpense;
+
+    const lines = [
+      `PaySmooth Ledger Export — ${dateRangeLabel}`,
+      `Exported: ${new Date().toLocaleString()}`,
+      "",
+      `Transactions: ${transactions.length}`,
+      `Total Income: ${formatCents(totalIncome, baseCurrency)}`,
+      `Total Expenses: ${formatCents(totalExpense, baseCurrency)}`,
+      `Net: ${formatCents(net, baseCurrency)}`,
+      "",
+      "Date,Amount,Note,Category,Account,Currency",
+    ];
+    for (const t of transactions) {
+      lines.push(
+        [
+          t.date.slice(0, 10),
+          (t.amountCents / 100).toFixed(2),
+          t.note ?? "",
+          t.categoryName ?? "Uncategorized",
+          t.accountName ?? "",
+          t.currencyCode,
+        ].join(","),
+      );
+    }
+    return lines.join("\n");
+  }, [selectedFormat, selectedScope, transactions, baseCurrency]);
 
   const handleExport = useCallback(async () => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-      // In production, this would generate the file and share it.
-      // For now, simulate a delay and show the share dialog with sample content.
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      const dateRange =
+      const content = buildExportContent();
+      const dateRangeLabel =
         selectedScope === "all"
           ? "All Time"
-          : selectedScope === "this-year"
-            ? "2026"
-            : selectedScope === "last-quarter"
-              ? "Q2 2026"
-              : "Custom Range";
-
-      const sampleCSV = `Date,Amount,Note,Category,Account,Currency
-2026-07-15,5000.00,"Client payment - Acme Corp",Client Payment,Checking,USD
-2026-07-14,150.00,"AWS hosting",Software,Checking,USD
-2026-07-10,3200.00,"Freelance project - Client A",Client Payment,Checking,USD
-2026-07-08,42.00,"Domain renewal",Software,Checking,USD
-2026-07-05,1200.00,"Consulting retainer",Client Payment,Checking,USD`;
+          : selectedScope === "custom"
+            ? "Custom Range"
+            : `${scopeRange(selectedScope)?.start} – ${scopeRange(selectedScope)?.end}`;
 
       await Share.share({
-        message:
-          selectedFormat === "csv"
-            ? sampleCSV
-            : `PaySmooth Export — ${dateRange}\n\n5 transactions\nTotal Income: $9,400.00\nTotal Expenses: $192.00\nNet: $9,208.00`,
-        title: `PaySmooth Ledger Export (${dateRange})`,
+        message: content,
+        title: `PaySmooth Ledger Export (${dateRangeLabel})`,
       });
 
       Alert.alert(
         "Export Complete",
-        `Your ledger has been exported as ${selectedFormat.toUpperCase()} for ${dateRange}.`,
+        `Your ledger has been exported as ${selectedFormat.toUpperCase()} for ${dateRangeLabel}.`,
       );
-    } catch (e: any) {
-      if (e?.message !== "User did not share") {
-        Alert.alert("Export Failed", e?.message ?? "Unknown error");
+    } catch (e: unknown) {
+      const err = e as { message?: string } | null;
+      if (err?.message !== "User did not share") {
+        Alert.alert("Export Failed", err?.message ?? "Unknown error");
       }
     } finally {
       setIsExporting(false);
     }
-  }, [isExporting, selectedFormat, selectedScope]);
+  }, [isExporting, buildExportContent, selectedFormat, selectedScope]);
+
+  // Summary stats from real data
+  const totalIncome = transactions
+    .filter((t) => t.amountCents > 0)
+    .reduce((s, t) => s + t.amountCents, 0);
+  const totalExpense = transactions
+    .filter((t) => t.amountCents < 0)
+    .reduce((s, t) => s + -t.amountCents, 0);
+  const firstDate =
+    transactions.length > 0
+      ? transactions[transactions.length - 1]?.date
+      : null;
+  const lastDate = transactions.length > 0 ? transactions[0]?.date : null;
+  const dateRangeLabel =
+    firstDate && lastDate
+      ? `${fmtDate(firstDate)} – ${fmtDate(lastDate)}`
+      : "No transactions yet";
+  const estSizeKB = Math.max(
+    1,
+    Math.round((buildExportContent().length * 2) / 1024),
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -334,7 +501,7 @@ export default function ExportLedgerScreen() {
                 Transactions
               </ThemedText>
               <ThemedText type="default" style={{ fontWeight: "600" }}>
-                247
+                {loaded ? transactions.length : "…"}
               </ThemedText>
             </View>
             <View
@@ -348,13 +515,35 @@ export default function ExportLedgerScreen() {
                 Date Range
               </ThemedText>
               <ThemedText type="default" style={{ fontWeight: "600" }}>
-                {selectedScope === "all"
-                  ? "Jan 2024 – Jul 2026"
-                  : selectedScope === "this-year"
-                    ? "Jan – Jul 2026"
-                    : selectedScope === "last-quarter"
-                      ? "Apr – Jun 2026"
-                      : "Custom"}
+                {loaded ? dateRangeLabel : "…"}
+              </ThemedText>
+            </View>
+            <View
+              style={[
+                styles.summaryDivider,
+                { backgroundColor: theme.divider },
+              ]}
+            />
+            <View style={styles.summaryRow}>
+              <ThemedText type="default" themeColor="textSecondary">
+                Income
+              </ThemedText>
+              <ThemedText type="default" style={{ fontWeight: "600" }}>
+                {loaded ? formatCents(totalIncome, baseCurrency) : "…"}
+              </ThemedText>
+            </View>
+            <View
+              style={[
+                styles.summaryDivider,
+                { backgroundColor: theme.divider },
+              ]}
+            />
+            <View style={styles.summaryRow}>
+              <ThemedText type="default" themeColor="textSecondary">
+                Expenses
+              </ThemedText>
+              <ThemedText type="default" style={{ fontWeight: "600" }}>
+                {loaded ? formatCents(totalExpense, baseCurrency) : "…"}
               </ThemedText>
             </View>
             <View
@@ -368,7 +557,7 @@ export default function ExportLedgerScreen() {
                 Estimated Size
               </ThemedText>
               <ThemedText type="default" style={{ fontWeight: "600" }}>
-                ~68 KB
+                {loaded ? `~${estSizeKB} KB` : "…"}
               </ThemedText>
             </View>
           </NeumorphicCard>

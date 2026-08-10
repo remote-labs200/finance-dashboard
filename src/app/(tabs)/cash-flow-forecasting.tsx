@@ -2,12 +2,37 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
+import { findTransactionsByUser } from "@/db/transaction-repo";
 import { useTheme } from "@/hooks/use-theme";
-import { useRouter } from "expo-router";
+import { generateForecast } from "@/lib/forecast-service";
+import { useAuthStore } from "@/stores/use-auth-store";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function monthLabel(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatCents(cents: number, currency: string = "USD"): string {
+  return (Math.abs(cents) / 100).toLocaleString(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Horizon chip
@@ -62,32 +87,118 @@ function HorizonChip({
 }
 
 // ---------------------------------------------------------------------------
-// Mock forecast data
-// ---------------------------------------------------------------------------
-
-const FORECAST_MONTHS = [
-  { month: "Aug 2026", income: 8500, expenses: 3200, balance: 5300 },
-  { month: "Sep 2026", income: 8500, expenses: 3100, balance: 5400 },
-  { month: "Oct 2026", income: 8200, expenses: 3500, balance: 4700 },
-  { month: "Nov 2026", income: 8000, expenses: 3400, balance: 4600 },
-  { month: "Dec 2026", income: 9500, expenses: 4200, balance: 5300 },
-  { month: "Jan 2027", income: 8500, expenses: 3300, balance: 5200 },
-];
-
-// ---------------------------------------------------------------------------
 // Main screen
 // ---------------------------------------------------------------------------
+
+interface ForecastMonth {
+  month: string; // YYYY-MM
+  income: number; // cents
+  expenses: number; // cents
+  balance: number; // cents
+}
 
 export default function CashFlowForecastingScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const user = useAuthStore((s) => s.user);
 
   const [horizon, setHorizon] = useState<3 | 6 | 12>(6);
   const [includeTaxReserve, setIncludeTaxReserve] = useState(true);
   const [includeBuffer, setIncludeBuffer] = useState(true);
+  const [forecastMonths, setForecastMonths] = useState<ForecastMonth[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [startingBalanceCents, setStartingBalanceCents] = useState(0);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
 
-  const visibleMonths = FORECAST_MONTHS.slice(0, horizon);
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getPreference(db, user.id, "base_currency").then((value) => {
+      if (mounted) setBaseCurrency(value);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user]);
+
+  // Aggregate the user's actual transactions by month, then run the
+  // forecast engine over the last 12 months of history.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      (async () => {
+        try {
+          const txs = await findTransactionsByUser(db, user.id, {
+            limit: 2000,
+          });
+          if (!active) return;
+
+          // Group by YYYY-MM
+          const byMonth = new Map<
+            string,
+            { income: number; expense: number }
+          >();
+          for (const t of txs) {
+            const ym = t.date.slice(0, 7);
+            if (!ym) continue;
+            const entry = byMonth.get(ym) ?? { income: 0, expense: 0 };
+            if (t.amountCents > 0) entry.income += t.amountCents;
+            else entry.expense += -t.amountCents;
+            byMonth.set(ym, entry);
+          }
+
+          // Last 12 months of history for the engine
+          const sortedMonths = [...byMonth.keys()].sort();
+          const recent = sortedMonths.slice(-12).map((ym) => ({
+            month: ym,
+            incomeCents: byMonth.get(ym)?.income ?? 0,
+            expenseCents: byMonth.get(ym)?.expense ?? 0,
+          }));
+
+          const result = generateForecast(recent, 12);
+
+          // Running balance: start from 0 and accumulate forecasted net,
+          // adjusted for the tax-reserve and dry-month buffer assumptions.
+          const taxRate = 0.25; // conservative estimate, configurable later
+          const bufferMonths = 1; // one month of expenses kept as reserve
+
+          let running = 0;
+          const months: ForecastMonth[] = result.forecasts.map((f) => {
+            let income = f.predictedIncomeCents;
+            let expenses = f.predictedExpenseCents;
+            if (includeTaxReserve) {
+              expenses += Math.round(income * taxRate);
+            }
+            if (includeBuffer) {
+              expenses += Math.round(f.predictedExpenseCents * bufferMonths);
+            }
+            running += income - expenses;
+            return {
+              month: f.month,
+              income,
+              expenses,
+              balance: running,
+            };
+          });
+
+          setForecastMonths(months);
+          setStartingBalanceCents(0);
+          setLoaded(true);
+        } catch (e: unknown) {
+          if (e instanceof Error && e.message.includes("closed")) return;
+          console.warn("Failed to build cash flow forecast:", e);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [db, user, includeTaxReserve, includeBuffer]),
+  );
+
+  const visibleMonths = forecastMonths.slice(0, horizon);
 
   const totals = visibleMonths.reduce(
     (acc, m) => ({
@@ -98,7 +209,7 @@ export default function CashFlowForecastingScreen() {
     { income: 0, expenses: 0, net: 0 },
   );
 
-  const highestBalance = Math.max(...visibleMonths.map((m) => m.balance));
+  const highestBalance = Math.max(...visibleMonths.map((m) => m.balance), 1);
   const barUnit = highestBalance > 0 ? highestBalance / 100 : 1;
 
   return (
@@ -261,7 +372,7 @@ export default function CashFlowForecastingScreen() {
                 type="default"
                 style={{ fontWeight: "600", color: theme.success }}
               >
-                ${totals.income.toLocaleString()}
+                {loaded ? formatCents(totals.income, baseCurrency) : "…"}
               </ThemedText>
             </View>
             <View
@@ -275,7 +386,7 @@ export default function CashFlowForecastingScreen() {
                 type="default"
                 style={{ fontWeight: "600", color: theme.danger }}
               >
-                ${totals.expenses.toLocaleString()}
+                {loaded ? formatCents(totals.expenses, baseCurrency) : "…"}
               </ThemedText>
             </View>
             <View
@@ -293,7 +404,7 @@ export default function CashFlowForecastingScreen() {
                   color: totals.net >= 0 ? theme.success : theme.danger,
                 }}
               >
-                ${totals.net.toLocaleString()}
+                {loaded ? formatCents(totals.net, baseCurrency) : "…"}
               </ThemedText>
             </View>
           </NeumorphicCard>
@@ -303,35 +414,46 @@ export default function CashFlowForecastingScreen() {
             <ThemedText type="callout" style={styles.sectionTitle}>
               Monthly Breakdown
             </ThemedText>
-            {visibleMonths.map((m) => {
-              const barHeight = Math.max((m.balance / barUnit) * 0.6, 8);
-              const barColor = m.balance >= 0 ? theme.success : theme.danger;
-              return (
-                <View key={m.month} style={styles.barRow}>
-                  <ThemedText type="small" style={styles.barLabel}>
-                    {m.month}
-                  </ThemedText>
-                  <View style={styles.barTrack}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: barHeight,
-                          backgroundColor: barColor,
-                          width: `${Math.min((m.balance / highestBalance) * 100, 100)}%`,
-                        },
-                      ]}
-                    />
+            {!loaded && (
+              <ThemedText type="small" themeColor="textSecondary">
+                Loading forecast…
+              </ThemedText>
+            )}
+            {loaded && visibleMonths.length === 0 && (
+              <ThemedText type="small" themeColor="textSecondary">
+                No transaction history yet — add transactions to see a forecast.
+              </ThemedText>
+            )}
+            {loaded &&
+              visibleMonths.map((m) => {
+                const barHeight = Math.max((m.balance / barUnit) * 0.6, 8);
+                const barColor = m.balance >= 0 ? theme.success : theme.danger;
+                return (
+                  <View key={m.month} style={styles.barRow}>
+                    <ThemedText type="small" style={styles.barLabel}>
+                      {monthLabel(m.month)}
+                    </ThemedText>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: barHeight,
+                            backgroundColor: barColor,
+                            width: `${Math.min((m.balance / highestBalance) * 100, 100)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <ThemedText
+                      type="small"
+                      style={[styles.barValue, { color: barColor }]}
+                    >
+                      {formatCents(m.balance, baseCurrency)}
+                    </ThemedText>
                   </View>
-                  <ThemedText
-                    type="small"
-                    style={[styles.barValue, { color: barColor }]}
-                  >
-                    ${m.balance.toLocaleString()}
-                  </ThemedText>
-                </View>
-              );
-            })}
+                );
+              })}
           </View>
 
           {/* Info */}

@@ -6,8 +6,11 @@ import {
   NeumorphicSurface,
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useSQLiteContext } from "@/db/provider";
+import { integrationSettings } from "@/db/settings-repo";
 import { useTheme } from "@/hooks/use-theme";
-import { useRouter } from "expo-router";
+import { useAuthStore } from "@/stores/use-auth-store";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -25,6 +28,10 @@ interface Integration {
   connected: boolean;
   hasApiKey: boolean;
 }
+
+// Settings keys stored in integrations_settings (composite id = user_id_key)
+const connectedKeyFor = (id: string) => `integration_${id}_connected`;
+const apiKeyKeyFor = (id: string) => `integration_${id}_has_api_key`;
 
 // ---------------------------------------------------------------------------
 // Integration Row
@@ -109,7 +116,7 @@ function IntegrationRow({
 }
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Static catalog
 // ---------------------------------------------------------------------------
 
 const MOCK_INTEGRATIONS: Integration[] = [
@@ -182,12 +189,65 @@ export default function InvoicingIntegrationsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const user = useAuthStore((s) => s.user);
   const [integrations, setIntegrations] = useState(MOCK_INTEGRATIONS);
+  const [loaded, setLoaded] = useState(false);
 
-  const handleToggle = useCallback((id: string) => {
-    setIntegrations((prev) => {
-      const target = prev.find((i) => i.id === id);
-      if (!target) return prev;
+  // Load persisted integration state from integrations_settings
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      (async () => {
+        try {
+          const settings = await integrationSettings.getAll(db, user.id);
+          if (!active) return;
+          setIntegrations((prev) =>
+            prev.map((i) => ({
+              ...i,
+              connected: settings[connectedKeyFor(i.id)] === "true",
+              hasApiKey: settings[apiKeyKeyFor(i.id)] === "true" || i.hasApiKey,
+            })),
+          );
+          setLoaded(true);
+        } catch (e: unknown) {
+          if (e instanceof Error && e.message.includes("closed")) return;
+          console.warn("Failed to load integration settings:", e);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [db, user]),
+  );
+
+  // Persist a single integration's state to integrations_settings
+  const persistIntegration = useCallback(
+    async (id: string, connected: boolean) => {
+      if (!user) return;
+      try {
+        await integrationSettings.set(
+          db,
+          user.id,
+          connectedKeyFor(id),
+          connected ? "true" : "false",
+        );
+        setIntegrations((prev) =>
+          prev.map((i) => (i.id === id ? { ...i, connected } : i)),
+        );
+      } catch (e: unknown) {
+        if (e instanceof Error && e.message.includes("closed")) return;
+        console.warn("Failed to save integration state:", e);
+      }
+    },
+    [db, user],
+  );
+
+  const handleToggle = useCallback(
+    (id: string) => {
+      const target = integrations.find((i) => i.id === id);
+      if (!target) return;
       if (target.connected) {
         Alert.alert(
           "Disable Integration",
@@ -198,18 +258,33 @@ export default function InvoicingIntegrationsScreen() {
               text: "Disable",
               style: "destructive",
               onPress: () => {
-                setIntegrations((p) =>
-                  p.map((i) => (i.id === id ? { ...i, connected: false } : i)),
-                );
+                persistIntegration(id, false);
               },
             },
           ],
         );
-        return prev;
+        return;
       }
-      return prev.map((i) => (i.id === id ? { ...i, connected: true } : i));
-    });
-  }, []);
+      // Enabling requires an API key for most gateways — mark as connected
+      // but surface the setup requirement honestly.
+      Alert.alert(
+        `Enable ${target.name}`,
+        target.hasApiKey
+          ? `Enabling ${target.name} will generate payment links on your invoices once a real API key is configured.`
+          : `${target.name} doesn't require an API key and can be enabled right away.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Enable",
+            onPress: () => {
+              persistIntegration(id, true);
+            },
+          },
+        ],
+      );
+    },
+    [integrations, persistIntegration],
+  );
 
   const handleConfigure = useCallback(
     (id: string) => {
@@ -223,6 +298,20 @@ export default function InvoicingIntegrationsScreen() {
           {
             text: "Configure",
             onPress: () => {
+              // No real key storage yet — mark hasApiKey so the UI reflects
+              // the intent, and let the user revisit once keys are supported.
+              if (user) {
+                integrationSettings
+                  .set(db, user.id, apiKeyKeyFor(id), "true")
+                  .catch((e: unknown) => {
+                    if (e instanceof Error && e.message.includes("closed"))
+                      return;
+                    console.warn("Failed to save API key flag:", e);
+                  });
+              }
+              setIntegrations((prev) =>
+                prev.map((i) => (i.id === id ? { ...i, hasApiKey: true } : i)),
+              );
               Alert.alert(
                 "API Key Saved",
                 `${integration.name} integration is ready to process payments.`,
@@ -232,7 +321,7 @@ export default function InvoicingIntegrationsScreen() {
         ],
       );
     },
-    [integrations],
+    [integrations, db, user],
   );
 
   const activeCount = integrations.filter((i) => i.connected).length;

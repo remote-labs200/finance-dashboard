@@ -42,8 +42,8 @@ export interface Category {
 export interface Transaction {
   id: string; // UUID
   userId: string;
-  accountId: string;
-  categoryId: string;
+  accountId?: string;
+  categoryId?: string;
   amountCents: number; // Positive for income, negative for expense
   currencyCode: string;
   note?: string;
@@ -69,6 +69,22 @@ export interface Client {
   currencyCode: string; // Default currency for this client
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
+}
+
+export interface MileageEntry {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  purpose: string;
+  miles: number;
+  startLat?: number;
+  startLng?: number;
+  startLocation?: string;
+  endLat?: number;
+  endLng?: number;
+  endLocation?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TaxSettings {
@@ -120,8 +136,8 @@ export const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY NOT NULL,
     user_id TEXT NOT NULL,
-    account_id TEXT NOT NULL,
-    category_id TEXT NOT NULL,
+    account_id TEXT,
+    category_id TEXT,
     amount_cents INTEGER NOT NULL,
     currency_code TEXT NOT NULL,
     note TEXT,
@@ -189,4 +205,42 @@ export const MIGRATIONS = [
     synced_at TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_sync_log_status ON sync_log(status)`,
+  // Mileage tracking (cloud-first: mirrors public.mileage_entries on Supabase)
+  `CREATE TABLE IF NOT EXISTS mileage_entries (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    purpose TEXT NOT NULL DEFAULT 'Business',
+    miles REAL NOT NULL DEFAULT 0,
+    start_lat REAL,
+    start_lng REAL,
+    start_location TEXT,
+    end_lat REAL,
+    end_lng REAL,
+    end_location TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_mileage_entries_user_id ON mileage_entries(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_mileage_entries_date ON mileage_entries(date)`,
+  // App settings (key-value, user-scoped) — mirrors public.app_settings
+  // Stores per-device/app settings like bank connection state.
+  `CREATE TABLE IF NOT EXISTS app_settings (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_app_settings_user_id ON app_settings(user_id)`,
+  // Integration settings (key-value, user-scoped) — mirrors public.integrations_settings
+  // Stores payment gateway / accounting platform enable state.
+  `CREATE TABLE IF NOT EXISTS integrations_settings (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_integrations_settings_user_id ON integrations_settings(user_id)`,
 ];

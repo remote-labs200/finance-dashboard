@@ -2,10 +2,14 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { getAllPreferences, setPreference } from "@/db/preferences-repo";
+import { useSQLiteContext } from "@/db/provider";
+import { findTransactionsByUser } from "@/db/transaction-repo";
 import { useTheme } from "@/hooks/use-theme";
-import { useRouter } from "expo-router";
+import { useAuthStore } from "@/stores/use-auth-store";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -79,30 +83,167 @@ function FrequencyChip({
 }
 
 // ---------------------------------------------------------------------------
-// Mock data: recent anomalies
+// Real insights built from local transaction data
 // ---------------------------------------------------------------------------
 
-const RECENT_INSIGHTS = [
-  {
-    type: "anomaly" as const,
-    title: "Unusual spending detected",
-    detail: "Software category 3x higher than monthly average ($450 vs $150).",
-    date: "2 days ago",
-  },
-  {
-    type: "forecast" as const,
-    title: "Cash reserve running low",
-    detail:
-      "Projected balance of $2,100 at month-end — below $3,000 threshold.",
-    date: "5 days ago",
-  },
-  {
-    type: "opportunity" as const,
-    title: "Tax deduction opportunity",
-    detail: "Home office expenses are 40% below estimated eligible amount.",
-    date: "1 week ago",
-  },
-];
+type InsightType = "anomaly" | "forecast" | "opportunity";
+
+interface Insight {
+  type: InsightType;
+  title: string;
+  detail: string;
+  date: string;
+}
+
+function formatCents(cents: number, currency: string = "USD"): string {
+  return (Math.abs(cents) / 100).toLocaleString(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  });
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30)
+    return `${Math.floor(days / 7)} week${days >= 14 ? "s" : ""} ago`;
+  return `${Math.floor(days / 30)} month${days >= 60 ? "s" : ""} ago`;
+}
+
+/**
+ * Build a small list of insights from the user's actual transactions:
+ * - Category spending anomaly (this month vs monthly average)
+ * - Cash flow forecast (projected month-end balance vs threshold)
+ * - Tax deduction opportunity (income vs expenses ratio)
+ */
+function buildInsights(
+  transactions: Array<{
+    amountCents: number;
+    categoryName: string | null;
+    date: string;
+  }>,
+  forecastThresholdCents: number,
+  currency: string = "USD",
+): Insight[] {
+  const insights: Insight[] = [];
+  const now = new Date();
+  const thisMonth = now.toISOString().slice(0, 7);
+  const nowIso = now.toISOString();
+
+  if (transactions.length === 0) {
+    return [
+      {
+        type: "forecast",
+        title: "No transaction data yet",
+        detail:
+          "Add transactions to start receiving cash flow and anomaly insights.",
+        date: nowIso,
+      },
+    ];
+  }
+
+  // --- Anomaly: category spending this month vs monthly average ---
+  const byCategory = new Map<string, { total: number; months: Set<string> }>();
+  for (const t of transactions) {
+    if (t.amountCents >= 0) continue; // expenses only
+    const cat = t.categoryName ?? "Uncategorized";
+    const entry = byCategory.get(cat) ?? {
+      total: 0,
+      months: new Set<string>(),
+    };
+    entry.total += -t.amountCents;
+    entry.months.add(t.date.slice(0, 7));
+    byCategory.set(cat, entry);
+  }
+  let topAnomaly: { cat: string; thisMonth: number; avg: number } | null = null;
+  for (const [cat, e] of byCategory) {
+    if (!e.months.has(thisMonth)) continue;
+    const monthTotal = transactions
+      .filter(
+        (t) =>
+          t.amountCents < 0 &&
+          (t.categoryName ?? "Uncategorized") === cat &&
+          t.date.slice(0, 7) === thisMonth,
+      )
+      .reduce((sum, t) => sum + -t.amountCents, 0);
+    const monthsCount = Math.max(e.months.size, 1);
+    const avg = e.total / monthsCount;
+    if (monthTotal > avg * 1.5 && monthTotal - avg > 10_000) {
+      if (
+        !topAnomaly ||
+        monthTotal / avg > topAnomaly.thisMonth / topAnomaly.avg
+      ) {
+        topAnomaly = { cat, thisMonth: monthTotal, avg };
+      }
+    }
+  }
+  if (topAnomaly) {
+    insights.push({
+      type: "anomaly",
+      title: "Unusual spending detected",
+      detail: `${topAnomaly.cat} is ${Math.round((topAnomaly.thisMonth / topAnomaly.avg) * 100)}% of its monthly average (${formatCents(topAnomaly.thisMonth, currency)} vs ${formatCents(topAnomaly.avg, currency)}).`,
+      date: nowIso,
+    });
+  }
+
+  // --- Forecast: projected month-end balance vs threshold ---
+  const incomeThisMonth = transactions
+    .filter((t) => t.amountCents > 0 && t.date.slice(0, 7) === thisMonth)
+    .reduce((s, t) => s + t.amountCents, 0);
+  const expenseThisMonth = transactions
+    .filter((t) => t.amountCents < 0 && t.date.slice(0, 7) === thisMonth)
+    .reduce((s, t) => s + -t.amountCents, 0);
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    .toISOString()
+    .slice(0, 7);
+  const expenseLastMonth = transactions
+    .filter((t) => t.amountCents < 0 && t.date.slice(0, 7) === lastMonth)
+    .reduce((s, t) => s + -t.amountCents, 0);
+  const projectedBalance = incomeThisMonth - expenseThisMonth;
+  if (projectedBalance < forecastThresholdCents) {
+    insights.push({
+      type: "forecast",
+      title: "Cash reserve running low",
+      detail: `Projected month-end balance of ${formatCents(projectedBalance, currency)} — below ${formatCents(forecastThresholdCents, currency)} threshold.`,
+      date: nowIso,
+    });
+  }
+
+  // --- Opportunity: income vs expense ratio (tax-friendly) ---
+  const totalIncome = transactions
+    .filter((t) => t.amountCents > 0)
+    .reduce((s, t) => s + t.amountCents, 0);
+  const totalExpense = transactions
+    .filter((t) => t.amountCents < 0)
+    .reduce((s, t) => s + -t.amountCents, 0);
+  if (totalIncome > 0) {
+    const ratio = totalExpense / totalIncome;
+    if (ratio < 0.3 && totalExpense > 10_000) {
+      insights.push({
+        type: "opportunity",
+        title: "Tax deduction opportunity",
+        detail: `Expenses are only ${Math.round(ratio * 100)}% of income (${formatCents(totalExpense, currency)} vs ${formatCents(totalIncome, currency)}). Review deductible business expenses.`,
+        date: nowIso,
+      });
+    }
+  }
+
+  // Fallback when nothing stood out
+  if (insights.length === 0 && expenseLastMonth > 0) {
+    insights.push({
+      type: "forecast",
+      title: "Cash flow looks steady",
+      detail: `Last month's expenses were ${formatCents(expenseLastMonth, currency)}. No anomalies detected.`,
+      date: nowIso,
+    });
+  }
+
+  return insights.slice(0, 3);
+}
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -112,6 +253,8 @@ export default function AiFinancialInsightsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const user = useAuthStore((s) => s.user);
 
   const [anomalyAlerts, setAnomalyAlerts] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(true);
@@ -120,8 +263,115 @@ export default function AiFinancialInsightsScreen() {
     "daily" | "weekly" | "monthly"
   >("weekly");
   const [forecastThresh, setForecastThresh] = useState(3000);
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
 
   const threshOptions = [1000, 2000, 3000, 5000, 10000];
+
+  // Load saved preferences + real insights from local transactions
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      (async () => {
+        try {
+          const prefs = await getAllPreferences(db, user.id);
+          if (!active) return;
+          setAnomalyAlerts(prefs.ai_anomaly_alerts !== "false");
+          setWeeklyDigest(prefs.ai_weekly_digest !== "false");
+          setTaxOpportunities(prefs.ai_tax_opportunities !== "false");
+          const freq = prefs.ai_insight_frequency;
+          setInsightFrequency(
+            freq === "daily" || freq === "monthly" ? freq : "weekly",
+          );
+          const thresh = Number(prefs.ai_forecast_threshold) || 3000;
+          setForecastThresh(thresh);
+          setBaseCurrency(prefs.base_currency);
+
+          // Real insights from actual transactions
+          const txs = await findTransactionsByUser(db, user.id, { limit: 500 });
+          if (!active) return;
+          setInsights(
+            buildInsights(
+              txs.map((t) => ({
+                amountCents: t.amountCents,
+                categoryName: t.categoryName ?? null,
+                date: t.date,
+              })),
+              thresh * 100,
+              baseCurrency,
+            ),
+          );
+        } catch (e: unknown) {
+          if (e instanceof Error && e.message.includes("closed")) return;
+          console.warn("Failed to load AI insights preferences:", e);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [db, user, baseCurrency]),
+  );
+
+  const savePref = useCallback(
+    async (
+      key:
+        | "ai_anomaly_alerts"
+        | "ai_weekly_digest"
+        | "ai_tax_opportunities"
+        | "ai_insight_frequency"
+        | "ai_forecast_threshold",
+      value: string,
+    ) => {
+      if (!user) return;
+      try {
+        await setPreference(db, user.id, key, value);
+      } catch (e: unknown) {
+        console.warn(`Failed to save ${key}:`, e);
+      }
+    },
+    [db, user],
+  );
+
+  const handleAnomalyToggle = useCallback(
+    (v: boolean) => {
+      setAnomalyAlerts(v);
+      savePref("ai_anomaly_alerts", v ? "true" : "false");
+    },
+    [savePref],
+  );
+
+  const handleDigestToggle = useCallback(
+    (v: boolean) => {
+      setWeeklyDigest(v);
+      savePref("ai_weekly_digest", v ? "true" : "false");
+    },
+    [savePref],
+  );
+
+  const handleTaxToggle = useCallback(
+    (v: boolean) => {
+      setTaxOpportunities(v);
+      savePref("ai_tax_opportunities", v ? "true" : "false");
+    },
+    [savePref],
+  );
+
+  const handleFrequency = useCallback(
+    (f: "daily" | "weekly" | "monthly") => {
+      setInsightFrequency(f);
+      savePref("ai_insight_frequency", f);
+    },
+    [savePref],
+  );
+
+  const handleThreshold = useCallback(
+    (t: number) => {
+      setForecastThresh(t);
+      savePref("ai_forecast_threshold", String(t));
+    },
+    [savePref],
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -172,7 +422,7 @@ export default function AiFinancialInsightsScreen() {
                 label="Anomaly Detection"
                 description="Get notified when spending deviates from your patterns."
                 value={anomalyAlerts}
-                onValueChange={setAnomalyAlerts}
+                onValueChange={handleAnomalyToggle}
               />
               <View
                 style={[styles.divider, { backgroundColor: theme.divider }]}
@@ -181,7 +431,7 @@ export default function AiFinancialInsightsScreen() {
                 label="Weekly Digest"
                 description="Receive a summary of income, expenses, and cash flow each week."
                 value={weeklyDigest}
-                onValueChange={setWeeklyDigest}
+                onValueChange={handleDigestToggle}
               />
               <View
                 style={[styles.divider, { backgroundColor: theme.divider }]}
@@ -190,7 +440,7 @@ export default function AiFinancialInsightsScreen() {
                 label="Tax Opportunities"
                 description="AI identifies potential deductions and tax-saving moves."
                 value={taxOpportunities}
-                onValueChange={setTaxOpportunities}
+                onValueChange={handleTaxToggle}
               />
             </NeumorphicCard>
           </View>
@@ -213,7 +463,7 @@ export default function AiFinancialInsightsScreen() {
                   key={f}
                   label={f.charAt(0).toUpperCase() + f.slice(1)}
                   selected={insightFrequency === f}
-                  onSelect={() => setInsightFrequency(f)}
+                  onSelect={() => handleFrequency(f)}
                 />
               ))}
             </View>
@@ -237,19 +487,19 @@ export default function AiFinancialInsightsScreen() {
                   key={t}
                   label={`$${(t / 100).toLocaleString()}`}
                   selected={forecastThresh === t}
-                  onSelect={() => setForecastThresh(t)}
+                  onSelect={() => handleThreshold(t)}
                 />
               ))}
             </View>
           </View>
 
           {/* Recent insights */}
-          {anomalyAlerts && (
+          {(anomalyAlerts || weeklyDigest || taxOpportunities) && (
             <View style={styles.section}>
               <ThemedText type="callout" style={styles.sectionTitle}>
                 Recent Insights
               </ThemedText>
-              {RECENT_INSIGHTS.map((insight, idx) => {
+              {insights.map((insight, idx) => {
                 const accentColor =
                   insight.type === "anomaly"
                     ? theme.warning

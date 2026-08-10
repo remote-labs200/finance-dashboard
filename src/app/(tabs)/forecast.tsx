@@ -7,6 +7,7 @@ import { ThemedView } from "@/components/themed-view";
 import { NeumorphicCard, NeumorphicSurface } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
 import { useThemeColors } from "@/hooks/use-theme";
 import { ForecastResult, generateForecast } from "@/lib/forecast-service";
 import { formatCurrency, getMonthName } from "@/lib/format";
@@ -17,6 +18,7 @@ export default function ForecastScreen() {
   const user = useAuthStore((state) => state.user);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
 
@@ -65,6 +67,17 @@ export default function ForecastScreen() {
     loadForecast();
   }, [loadForecast]);
 
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getPreference(db, user.id, "base_currency").then((value) => {
+      if (mounted) setBaseCurrency(value);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadForecast();
@@ -105,7 +118,7 @@ export default function ForecastScreen() {
                       type="headline"
                       style={{ color: colors.success }}
                     >
-                      {formatCurrency(forecast.averageIncomeCents, "USD")}
+                      {formatCurrency(forecast.averageIncomeCents, baseCurrency)}
                     </ThemedText>
                   </View>
                   <View style={styles.summaryItem}>
@@ -116,7 +129,7 @@ export default function ForecastScreen() {
                       type="headline"
                       style={{ color: colors.danger }}
                     >
-                      {formatCurrency(forecast.averageExpenseCents, "USD")}
+                      {formatCurrency(forecast.averageExpenseCents, baseCurrency)}
                     </ThemedText>
                   </View>
                 </View>
@@ -195,7 +208,7 @@ export default function ForecastScreen() {
                         type="default"
                         style={{ color: colors.success }}
                       >
-                        {formatCurrency(point.predictedIncomeCents, "USD")}
+                        {formatCurrency(point.predictedIncomeCents, baseCurrency)}
                       </ThemedText>
                     </View>
                     <View style={styles.forecastRow}>
@@ -206,7 +219,7 @@ export default function ForecastScreen() {
                         type="default"
                         style={{ color: colors.danger }}
                       >
-                        {formatCurrency(point.predictedExpenseCents, "USD")}
+                        {formatCurrency(point.predictedExpenseCents, baseCurrency)}
                       </ThemedText>
                     </View>
                     <View
@@ -226,7 +239,7 @@ export default function ForecastScreen() {
                           color: net >= 0 ? colors.success : colors.danger,
                         }}
                       >
-                        {formatCurrency(net, "USD")}
+                        {formatCurrency(net, baseCurrency)}
                       </ThemedText>
                     </View>
                   </NeumorphicCard>

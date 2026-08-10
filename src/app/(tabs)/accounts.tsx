@@ -20,6 +20,7 @@ import {
     findAccountsByUser,
 } from "@/db/account-repo";
 import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
 import { Account } from "@/db/schema";
 import { useThemeColors } from "@/hooks/use-theme";
 import { formatCurrency } from "@/lib/format";
@@ -40,6 +41,7 @@ export default function AccountsScreen() {
   ];
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
 
   const loadAccounts = useCallback(async () => {
     if (!user) return;
@@ -56,6 +58,17 @@ export default function AccountsScreen() {
     loadAccounts();
   }, [loadAccounts]);
 
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getPreference(db, user.id, "base_currency").then((value) => {
+      if (mounted) setBaseCurrency(value);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadAccounts();
@@ -71,7 +84,7 @@ export default function AccountsScreen() {
         name: name.trim(),
         type: "checking",
         balanceCents: 0,
-        currencyCode: "USD",
+        currencyCode: baseCurrency,
         color,
         isHidden: false,
       });
@@ -81,7 +94,7 @@ export default function AccountsScreen() {
         "New Account",
         'Tap "Add Default Account" to create an account with a default name.',
       );
-  }, [db, user, accounts.length, loadAccounts]);
+  }, [db, user, accounts.length, loadAccounts, baseCurrency]);
 
   const handleQuickAdd = useCallback(async () => {
     if (!user) return;
@@ -92,12 +105,12 @@ export default function AccountsScreen() {
       name,
       type: "checking",
       balanceCents: 0,
-      currencyCode: "USD",
+      currencyCode: baseCurrency,
       color,
       isHidden: false,
     });
     await loadAccounts();
-  }, [db, user, accounts.length, loadAccounts]);
+  }, [db, user, accounts.length, loadAccounts, baseCurrency]);
 
   const handleDelete = useCallback(
     (acc: Account) => {

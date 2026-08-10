@@ -15,6 +15,19 @@
 
 export type FilingStatus = 'single' | 'married_joint' | 'head_of_household';
 
+/**
+ * Normalize a saved filing-status preference (e.g. from `tax_filing_status`)
+ * into a FilingStatus the tax engine can compute with.
+ *
+ * The engine has brackets for single / married_joint / head_of_household.
+ * "married_separate" uses the same rate brackets as "single" under US law,
+ * so it maps to single. Unknown values fall back to single.
+ */
+export function toFilingStatus(value: string | undefined | null): FilingStatus {
+  if (value === 'married_joint' || value === 'head_of_household') return value;
+  return 'single';
+}
+
 export interface TaxInputs {
   /** Year-to-date net self-employment income in cents */
   ytdIncomeCents: number;

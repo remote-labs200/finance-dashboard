@@ -2,12 +2,17 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { getAllPreferences, setPreference } from "@/db/preferences-repo";
+import { useSQLiteContext } from "@/db/provider";
 import { useTheme } from "@/hooks/use-theme";
-import { useRouter } from "expo-router";
+import { useAuthStore } from "@/stores/use-auth-store";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+type OcrCompressionLevel = "balanced" | "quality" | "max";
 
 // ---------------------------------------------------------------------------
 // Toggle row
@@ -104,14 +109,103 @@ export default function ReceiptOcrSettingsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const user = useAuthStore((s) => s.user);
 
   const [autoCategorize, setAutoCategorize] = useState(true);
   const [extractDates, setExtractDates] = useState(true);
   const [extractMerchants, setExtractMerchants] = useState(true);
   const [compressImages, setCompressImages] = useState(true);
-  const [compressionLevel, setCompressionLevel] = useState<
-    "balanced" | "quality" | "max"
-  >("balanced");
+  const [compressionLevel, setCompressionLevel] =
+    useState<OcrCompressionLevel>("balanced");
+
+  // Load saved OCR preferences on focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      (async () => {
+        try {
+          const prefs = await getAllPreferences(db, user.id);
+          if (!active) return;
+          setAutoCategorize(prefs.ocr_auto_categorize !== "false");
+          setExtractDates(prefs.ocr_extract_dates !== "false");
+          setExtractMerchants(prefs.ocr_extract_merchants !== "false");
+          setCompressImages(prefs.ocr_compress_images !== "false");
+          const level = prefs.ocr_compression_level;
+          setCompressionLevel(
+            level === "quality" || level === "max" ? level : "balanced",
+          );
+        } catch (e: unknown) {
+          if (e instanceof Error && e.message.includes("closed")) return;
+          console.warn("Failed to load OCR preferences:", e);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [db, user]),
+  );
+
+  const savePref = useCallback(
+    async (
+      key:
+        | "ocr_auto_categorize"
+        | "ocr_extract_dates"
+        | "ocr_extract_merchants"
+        | "ocr_compress_images"
+        | "ocr_compression_level",
+      value: string,
+    ) => {
+      if (!user) return;
+      try {
+        await setPreference(db, user.id, key, value);
+      } catch (e: unknown) {
+        console.warn(`Failed to save ${key}:`, e);
+      }
+    },
+    [db, user],
+  );
+
+  const handleAutoCategorize = useCallback(
+    (v: boolean) => {
+      setAutoCategorize(v);
+      savePref("ocr_auto_categorize", v ? "true" : "false");
+    },
+    [savePref],
+  );
+
+  const handleExtractDates = useCallback(
+    (v: boolean) => {
+      setExtractDates(v);
+      savePref("ocr_extract_dates", v ? "true" : "false");
+    },
+    [savePref],
+  );
+
+  const handleExtractMerchants = useCallback(
+    (v: boolean) => {
+      setExtractMerchants(v);
+      savePref("ocr_extract_merchants", v ? "true" : "false");
+    },
+    [savePref],
+  );
+
+  const handleCompressImages = useCallback(
+    (v: boolean) => {
+      setCompressImages(v);
+      savePref("ocr_compress_images", v ? "true" : "false");
+    },
+    [savePref],
+  );
+
+  const handleCompressionLevel = useCallback(
+    (level: OcrCompressionLevel) => {
+      setCompressionLevel(level);
+      savePref("ocr_compression_level", level);
+    },
+    [savePref],
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -162,7 +256,7 @@ export default function ReceiptOcrSettingsScreen() {
                 label="Auto-Categorize Receipts"
                 description="AI assigns categories based on merchant and amount patterns."
                 value={autoCategorize}
-                onValueChange={setAutoCategorize}
+                onValueChange={handleAutoCategorize}
               />
               <View
                 style={[styles.divider, { backgroundColor: theme.divider }]}
@@ -171,7 +265,7 @@ export default function ReceiptOcrSettingsScreen() {
                 label="Extract Dates"
                 description="Automatically detect and set purchase dates from receipt text."
                 value={extractDates}
-                onValueChange={setExtractDates}
+                onValueChange={handleExtractDates}
               />
               <View
                 style={[styles.divider, { backgroundColor: theme.divider }]}
@@ -180,7 +274,7 @@ export default function ReceiptOcrSettingsScreen() {
                 label="Extract Merchants"
                 description="Parse merchant names from receipt headers and logos."
                 value={extractMerchants}
-                onValueChange={setExtractMerchants}
+                onValueChange={handleExtractMerchants}
               />
             </NeumorphicCard>
           </View>
@@ -195,7 +289,7 @@ export default function ReceiptOcrSettingsScreen() {
                 label="Compress Uploaded Images"
                 description="Reduce file size before saving to device storage."
                 value={compressImages}
-                onValueChange={setCompressImages}
+                onValueChange={handleCompressImages}
               />
             </NeumorphicCard>
 
@@ -211,19 +305,19 @@ export default function ReceiptOcrSettingsScreen() {
                   label="Balanced"
                   description="Good quality at ~60% size reduction. Best for everyday use."
                   selected={compressionLevel === "balanced"}
-                  onSelect={() => setCompressionLevel("balanced")}
+                  onSelect={() => handleCompressionLevel("balanced")}
                 />
                 <CompressionLevel
                   label="Quality First"
                   description="Minimal compression — preserves text sharpness for OCR accuracy."
                   selected={compressionLevel === "quality"}
-                  onSelect={() => setCompressionLevel("quality")}
+                  onSelect={() => handleCompressionLevel("quality")}
                 />
                 <CompressionLevel
                   label="Max Storage Saving"
                   description="Highest compression — suitable for archive-only receipts."
                   selected={compressionLevel === "max"}
-                  onSelect={() => setCompressionLevel("max")}
+                  onSelect={() => handleCompressionLevel("max")}
                 />
               </View>
             )}

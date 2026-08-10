@@ -6,12 +6,17 @@ import {
   NeumorphicSurface,
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { useSQLiteContext } from "@/db/provider";
+import { bankSettings } from "@/db/settings-repo";
 import { useTheme } from "@/hooks/use-theme";
-import { useRouter } from "expo-router";
+import { useAuthStore } from "@/stores/use-auth-store";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+type BankStatus = "connected" | "disconnected" | "expired";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,9 +26,14 @@ interface BankProvider {
   id: string;
   name: string;
   logo: string; // emoji fallback
-  status: "connected" | "disconnected" | "expired";
+  status: BankStatus;
   lastSync: string | null;
 }
+
+// Key helpers for app_settings (composite id = user_id_key)
+const keyFor = (id: string) => `bank_${id}`;
+const statusKeyFor = (id: string) => `${keyFor(id)}_status`;
+const lastSyncKeyFor = (id: string) => `${keyFor(id)}_last_sync`;
 
 // ---------------------------------------------------------------------------
 // Bank Row
@@ -117,53 +127,21 @@ function BankRow({
 }
 
 // ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const MOCK_PROVIDERS: BankProvider[] = [
-  {
-    id: "plaid",
-    name: "Plaid",
-    logo: "🏦",
-    status: "connected",
-    lastSync: "Today, 09:32 AM",
-  },
-  {
-    id: "teller",
-    name: "Teller",
-    logo: "🏛️",
-    status: "disconnected",
-    lastSync: null,
-  },
-  {
-    id: "yodlee",
-    name: "Yodlee / Finicity",
-    logo: "📊",
-    status: "expired",
-    lastSync: "12 Jul 2026",
-  },
-  {
-    id: "salt-edge",
-    name: "Salt Edge",
-    logo: "🧂",
-    status: "disconnected",
-    lastSync: null,
-  },
-  {
-    id: "gocardless",
-    name: "GoCardless",
-    logo: "💳",
-    status: "disconnected",
-    lastSync: null,
-  },
-  {
-    id: "open-banking-uk",
-    name: "Open Banking (UK/EU)",
-    logo: "🇪🇺",
-    status: "disconnected",
-    lastSync: null,
-  },
+// Static catalog of supported providers (connection state comes from app_settings)
+const BANK_CATALOG: Omit<BankProvider, "status" | "lastSync">[] = [
+  { id: "plaid", name: "Plaid", logo: "🏦" },
+  { id: "teller", name: "Teller", logo: "🏛️" },
+  { id: "yodlee", name: "Yodlee / Finicity", logo: "📊" },
+  { id: "salt-edge", name: "Salt Edge", logo: "🧂" },
+  { id: "gocardless", name: "GoCardless", logo: "💳" },
+  { id: "open-banking-uk", name: "Open Banking (UK/EU)", logo: "🇪🇺" },
 ];
+
+const DEFAULT_PROVIDERS: BankProvider[] = BANK_CATALOG.map((p) => ({
+  ...p,
+  status: "disconnected",
+  lastSync: null,
+}));
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -173,58 +151,116 @@ export default function BankConnectionsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [providers, setProviders] = useState(MOCK_PROVIDERS);
+  const db = useSQLiteContext();
+  const user = useAuthStore((s) => s.user);
+  const [providers, setProviders] = useState<BankProvider[]>(DEFAULT_PROVIDERS);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load persisted provider state from app_settings
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      (async () => {
+        try {
+          const settings = await bankSettings.getAll(db, user.id);
+          if (!active) return;
+          setProviders((prev) =>
+            prev.map((p) => {
+              const raw = settings[statusKeyFor(p.id)];
+              const status: BankStatus =
+                raw === "connected" || raw === "expired"
+                  ? raw
+                  : raw === "disconnected"
+                    ? "disconnected"
+                    : "disconnected";
+              return {
+                ...p,
+                status,
+                lastSync: settings[lastSyncKeyFor(p.id)] ?? null,
+              };
+            }),
+          );
+          setLoaded(true);
+        } catch (e: unknown) {
+          if (e instanceof Error && e.message.includes("closed")) return;
+          console.warn("Failed to load bank connections:", e);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [db, user]),
+  );
+
+  // Persist a single provider's state to app_settings
+  const persistProvider = useCallback(
+    async (id: string, status: BankStatus, lastSync: string | null) => {
+      if (!user) return;
+      try {
+        await bankSettings.set(db, user.id, statusKeyFor(id), status);
+        await bankSettings.set(db, user.id, lastSyncKeyFor(id), lastSync ?? "");
+        setProviders((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, status, lastSync } : p)),
+        );
+      } catch (e: unknown) {
+        if (e instanceof Error && e.message.includes("closed")) return;
+        console.warn("Failed to save bank connection:", e);
+      }
+    },
+    [db, user],
+  );
 
   const handleConnect = useCallback(
     (id: string) => {
+      const name = providers.find((p) => p.id === id)?.name ?? id;
       Alert.alert(
         "Connect Bank",
-        `This will open the OAuth flow for ${
-          providers.find((p) => p.id === id)?.name ?? id
-        }.`,
+        `This will open the OAuth 2.0 flow for ${name}. A real connection requires an API key from the provider and is configured in a future release.`,
         [
           { text: "Cancel", style: "cancel" },
           {
             text: "Connect",
             onPress: () => {
-              setProviders((prev) =>
-                prev.map((p) =>
-                  p.id === id
-                    ? { ...p, status: "connected", lastSync: "Just now" }
-                    : p,
-                ),
+              const now = new Date();
+              persistProvider(
+                id,
+                "connected",
+                now.toLocaleString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                }),
               );
-              Alert.alert("Connected", "Bank account linked successfully.");
             },
           },
         ],
       );
     },
-    [providers],
+    [providers, persistProvider],
   );
 
-  const handleDisconnect = useCallback((id: string) => {
-    Alert.alert(
-      "Disconnect Bank",
-      "Are you sure? This will remove the linked bank account.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Disconnect",
-          style: "destructive",
-          onPress: () => {
-            setProviders((prev) =>
-              prev.map((p) =>
-                p.id === id
-                  ? { ...p, status: "disconnected", lastSync: null }
-                  : p,
-              ),
-            );
+  const handleDisconnect = useCallback(
+    (id: string) => {
+      Alert.alert(
+        "Disconnect Bank",
+        "Are you sure? This will remove the linked bank account.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Disconnect",
+            style: "destructive",
+            onPress: () => {
+              persistProvider(id, "disconnected", null);
+            },
           },
-        },
-      ],
-    );
-  }, []);
+        ],
+      );
+    },
+    [persistProvider],
+  );
 
   const handleReconnect = useCallback(
     (id: string) => {

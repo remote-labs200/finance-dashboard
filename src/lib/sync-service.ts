@@ -12,13 +12,13 @@
  * 5. refreshFromCloud nukes the local cache and re-pulls from cloud (used on sign-in)
  */
 
-import * as SQLite from 'expo-sqlite';
-import { supabase } from './supabase';
+import * as SQLite from "expo-sqlite";
+import { supabase } from "./supabase";
 
 // --- Types ---
 
-export type SyncOperation = 'upsert' | 'delete';
-export type SyncStatus = 'pending' | 'syncing' | 'synced' | 'error';
+export type SyncOperation = "upsert" | "delete";
+export type SyncStatus = "pending" | "syncing" | "synced" | "error";
 
 export interface SyncLogEntry {
   id: string;
@@ -71,16 +71,16 @@ export async function queueSync(
   entity: string,
   entityId: string,
   operation: SyncOperation,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ): Promise<void> {
   const id = `sync_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const now = new Date().toISOString();
 
   // Get current version
   const existing = await db.getFirstAsync<{ version: number }>(
-    'SELECT version FROM sync_log WHERE entity = ? AND entity_id = ? ORDER BY version DESC LIMIT 1',
+    "SELECT version FROM sync_log WHERE entity = ? AND entity_id = ? ORDER BY version DESC LIMIT 1",
     entity,
-    entityId
+    entityId,
   );
   const version = (existing?.version ?? 0) + 1;
 
@@ -93,13 +93,13 @@ export async function queueSync(
     operation,
     version,
     data ? JSON.stringify(data) : null,
-    now
+    now,
   );
 }
 
 export async function getPendingSyncEntries(
   db: SQLite.SQLiteDatabase,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<SyncLogEntry[]> {
   const rows = await db.getAllAsync<{
     id: string;
@@ -114,7 +114,7 @@ export async function getPendingSyncEntries(
     synced_at: string | null;
   }>(
     `SELECT * FROM sync_log WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?`,
-    limit
+    limit,
   );
 
   return rows.map((row) => ({
@@ -133,36 +133,36 @@ export async function getPendingSyncEntries(
 
 export async function markSynced(
   db: SQLite.SQLiteDatabase,
-  syncId: string
+  syncId: string,
 ): Promise<void> {
   await db.runAsync(
     `UPDATE sync_log SET status = 'synced', synced_at = ? WHERE id = ?`,
     new Date().toISOString(),
-    syncId
+    syncId,
   );
 }
 
 export async function markSyncError(
   db: SQLite.SQLiteDatabase,
   syncId: string,
-  error: string
+  error: string,
 ): Promise<void> {
   await db.runAsync(
     `UPDATE sync_log SET status = 'error', error_message = ? WHERE id = ?`,
     error,
-    syncId
+    syncId,
   );
 }
 
 // --- Push to Supabase ---
 
 export async function pushToSupabase(
-  db: SQLite.SQLiteDatabase
+  db: SQLite.SQLiteDatabase,
 ): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, conflicts: 0, errors: [] };
 
   if (!supabase) {
-    result.errors.push('Supabase not configured');
+    result.errors.push("Supabase not configured");
     return result;
   }
 
@@ -170,18 +170,18 @@ export async function pushToSupabase(
 
   for (const entry of pending) {
     try {
-      if (entry.operation === 'delete') {
+      if (entry.operation === "delete") {
         const { error } = await supabase
           .from(entry.entity)
           .delete()
-          .eq('id', entry.entityId);
+          .eq("id", entry.entityId);
 
         if (error) throw error;
       } else {
         const data = entry.data ? JSON.parse(entry.data) : {};
         const { error } = await supabase
           .from(entry.entity)
-          .upsert({ id: entry.entityId, ...data }, { onConflict: 'id' });
+          .upsert({ id: entry.entityId, ...data }, { onConflict: "id" });
 
         if (error) throw error;
       }
@@ -203,14 +203,14 @@ export async function pushToSupabase(
 export async function pullFromSupabase(
   db: SQLite.SQLiteDatabase,
   table: string,
-  lastSyncedAt?: string
+  lastSyncedAt?: string,
 ): Promise<number> {
   if (!supabase) return 0;
 
-  let query = supabase.from(table).select('*');
+  let query = supabase.from(table).select("*");
 
   if (lastSyncedAt) {
-    query = query.gt('updated_at', lastSyncedAt);
+    query = query.gt("updated_at", lastSyncedAt);
   }
 
   const { data, error } = await query;
@@ -221,12 +221,14 @@ export async function pullFromSupabase(
   for (const row of data) {
     // Upsert into local SQLite
     const columns = Object.keys(row);
-    const placeholders = columns.map(() => '?').join(', ');
-    const values: SQLite.SQLiteBindValue[] = columns.map((col) => (row as Record<string, unknown>)[col] as SQLite.SQLiteBindValue);
+    const placeholders = columns.map(() => "?").join(", ");
+    const values: SQLite.SQLiteBindValue[] = columns.map(
+      (col) => (row as Record<string, unknown>)[col] as SQLite.SQLiteBindValue,
+    );
 
     await db.runAsync(
-      `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`,
-      ...values
+      `INSERT OR REPLACE INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`,
+      ...values,
     );
     count++;
   }
@@ -236,7 +238,17 @@ export async function pullFromSupabase(
 
 // --- Full Sync ---
 
-const SYNC_TABLES = ['accounts', 'categories', 'clients', 'transactions', 'tax_settings', 'user_preferences'];
+const SYNC_TABLES = [
+  "accounts",
+  "categories",
+  "clients",
+  "transactions",
+  "tax_settings",
+  "user_preferences",
+  "mileage_entries",
+  "app_settings",
+  "integrations_settings",
+];
 
 /**
  * Perform a standard full sync:
@@ -250,7 +262,7 @@ const SYNC_TABLES = ['accounts', 'categories', 'clients', 'transactions', 'tax_s
  * Call this periodically while the app is foregrounded.
  */
 export async function performFullSync(
-  db: SQLite.SQLiteDatabase
+  db: SQLite.SQLiteDatabase,
 ): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, conflicts: 0, errors: [] };
 
@@ -260,7 +272,9 @@ export async function performFullSync(
       const count = await pullFromSupabase(db, table);
       result.pulled += count;
     } catch (err) {
-      result.errors.push(`Pull ${table}: ${err instanceof Error ? err.message : String(err)}`);
+      result.errors.push(
+        `Pull ${table}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -280,12 +294,12 @@ export async function performFullSync(
  * Should NOT be used for routine background sync (use performFullSync instead).
  */
 export async function refreshFromCloud(
-  db: SQLite.SQLiteDatabase
+  db: SQLite.SQLiteDatabase,
 ): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, conflicts: 0, errors: [] };
 
   if (!supabase) {
-    result.errors.push('Supabase not configured');
+    result.errors.push("Supabase not configured");
     return result;
   }
 
@@ -294,12 +308,16 @@ export async function refreshFromCloud(
     try {
       await db.runAsync(`DELETE FROM ${table}`);
     } catch (err) {
-      result.errors.push(`Clear ${table}: ${err instanceof Error ? err.message : String(err)}`);
+      result.errors.push(
+        `Clear ${table}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
   try {
-    await db.runAsync('DELETE FROM cache_metadata');
-  } catch { /* ignore — table may not exist */ }
+    await db.runAsync("DELETE FROM cache_metadata");
+  } catch {
+    /* ignore — table may not exist */
+  }
 
   // Re-pull everything from Supabase
   for (const table of SYNC_TABLES) {
@@ -307,7 +325,9 @@ export async function refreshFromCloud(
       const count = await pullFromSupabase(db, table);
       result.pulled += count;
     } catch (err) {
-      result.errors.push(`Pull ${table}: ${err instanceof Error ? err.message : String(err)}`);
+      result.errors.push(
+        `Pull ${table}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -321,12 +341,12 @@ export async function refreshFromCloud(
  * entries, or null if nothing has ever synced successfully.
  */
 export async function getLastSyncedAt(
-  db: SQLite.SQLiteDatabase
+  db: SQLite.SQLiteDatabase,
 ): Promise<string | null> {
   const row = await db.getFirstAsync<{ synced_at: string | null }>(
     `SELECT synced_at FROM sync_log
      WHERE status = 'synced' AND synced_at IS NOT NULL
-     ORDER BY synced_at DESC LIMIT 1`
+     ORDER BY synced_at DESC LIMIT 1`,
   );
   return row?.synced_at ?? null;
 }
@@ -337,7 +357,7 @@ export async function checkSupabaseConnection(): Promise<boolean> {
   if (!supabase) return false;
 
   try {
-    const { error } = await supabase.from('users').select('id').limit(1);
+    const { error } = await supabase.from("users").select("id").limit(1);
     return !error;
   } catch {
     return false;

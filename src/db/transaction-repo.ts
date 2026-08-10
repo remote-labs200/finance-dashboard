@@ -6,8 +6,8 @@ import { cloudUpsert, cloudDelete } from './cloud-writer';
 export interface TransactionRow {
   id: string;
   user_id: string;
-  account_id: string;
-  category_id: string;
+  account_id: string | null;
+  category_id: string | null;
   amount_cents: number;
   currency_code: string;
   note: string | null;
@@ -24,8 +24,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
   return {
     id: row.id,
     userId: row.user_id,
-    accountId: row.account_id,
-    categoryId: row.category_id,
+    accountId: row.account_id ?? undefined,
+    categoryId: row.category_id ?? undefined,
     amountCents: row.amount_cents,
     currencyCode: row.currency_code,
     note: row.note ?? undefined,
@@ -64,8 +64,8 @@ export async function createTransaction(
   // Write to Supabase first (source of truth)
   await cloudUpsert(db, 'transactions', id, {
     user_id: data.userId,
-    account_id: data.accountId,
-    category_id: data.categoryId,
+    account_id: data.accountId ?? null,
+    category_id: data.categoryId ?? null,
     amount_cents: data.amountCents,
     currency_code: data.currencyCode,
     note: data.note ?? null,
@@ -81,8 +81,8 @@ export async function createTransaction(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     data.userId,
-    data.accountId,
-    data.categoryId,
+    data.accountId ?? null,
+    data.categoryId ?? null,
     data.amountCents,
     data.currencyCode,
     data.note ?? null,
@@ -172,8 +172,8 @@ export async function updateTransaction(
 
   // Build payload for Supabase
   const cloudData: Record<string, unknown> = { updated_at: now };
-  if (data.accountId !== undefined) cloudData.account_id = data.accountId;
-  if (data.categoryId !== undefined) cloudData.category_id = data.categoryId;
+  if (data.accountId !== undefined) cloudData.account_id = data.accountId ?? null;
+  if (data.categoryId !== undefined) cloudData.category_id = data.categoryId ?? null;
   if (data.amountCents !== undefined) cloudData.amount_cents = data.amountCents;
   if (data.currencyCode !== undefined) cloudData.currency_code = data.currencyCode;
   if (data.note !== undefined) cloudData.note = data.note ?? null;
@@ -189,11 +189,11 @@ export async function updateTransaction(
 
   if (data.accountId !== undefined) {
     fields.push('account_id = ?');
-    values.push(data.accountId);
+    values.push(data.accountId ?? null);
   }
   if (data.categoryId !== undefined) {
     fields.push('category_id = ?');
-    values.push(data.categoryId);
+    values.push(data.categoryId ?? null);
   }
   if (data.amountCents !== undefined) {
     fields.push('amount_cents = ?');

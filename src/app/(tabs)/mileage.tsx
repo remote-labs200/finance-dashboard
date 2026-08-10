@@ -1,6 +1,7 @@
 import { FlashList } from "@shopify/flash-list";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   Alert,
   Platform,
@@ -19,19 +20,13 @@ import {
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useSQLiteContext } from "@/db/provider";
+import { createMileageEntry, deleteMileageEntry, findMileageEntriesByUser } from "@/db/mileage-repo";
+import { MileageEntry } from "@/db/schema";
 import { useThemeColors } from "@/hooks/use-theme";
 import { useAuthStore } from "@/stores/use-auth-store";
 
-interface MileageEntry {
-  id: string;
-  date: string;
-  purpose: string;
-  miles: number;
-  startLocation: string;
-  endLocation: string;
-}
-
 const IRS_RATE_PER_MILE = 0.67; // 2024 standard mileage rate
+const SUMMARY_CACHE_MS = 1000; // debounce refetch of summary stats
 
 async function loadLocation() {
   // Lazy import to avoid Metro bundling issues with expo-location
@@ -55,58 +50,24 @@ export default function MileageScreen() {
   const [trackingStart, setTrackingStart] = useState<any>(null);
 
   const loadEntries = useCallback(async () => {
-    if (!user) return;
+    if (!user || !db) return;
 
     try {
-      // Check if mileage_entries table exists, create if not
-      await db.execAsync(`
-      CREATE TABLE IF NOT EXISTS mileage_entries (
-        id TEXT PRIMARY KEY NOT NULL,
-        user_id TEXT NOT NULL,
-        date TEXT NOT NULL,
-        purpose TEXT NOT NULL,
-        miles REAL NOT NULL,
-        start_lat REAL,
-        start_lng REAL,
-        end_lat REAL,
-        end_lng REAL,
-        start_location TEXT,
-        end_location TEXT,
-        created_at TEXT NOT NULL
-      )
-    `);
-
-      const rows = await db.getAllAsync<{
-        id: string;
-        date: string;
-        purpose: string;
-        miles: number;
-        start_location: string;
-        end_location: string;
-      }>(
-        `SELECT * FROM mileage_entries WHERE user_id = ? ORDER BY date DESC`,
-        user.id,
-      );
-
-      setEntries(
-        rows.map((r) => ({
-          id: r.id,
-          date: r.date,
-          purpose: r.purpose,
-          miles: r.miles,
-          startLocation: r.start_location ?? "",
-          endLocation: r.end_location ?? "",
-        })),
-      );
+      const rows = await findMileageEntriesByUser(db, user.id);
+      setEntries(rows);
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes("closed")) return;
       console.warn("loadEntries error:", e);
     }
   }, [db, user]);
-
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
+
+  // Refresh on return from sub-screens
+  useFocusEffect(() => {
+    if (user) { loadEntries(); }
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -193,22 +154,18 @@ export default function MileageScreen() {
         const id = `mile_${Date.now()}`;
         const now = new Date().toISOString();
 
-        await db.runAsync(
-          `INSERT INTO mileage_entries (id, user_id, date, purpose, miles, start_lat, start_lng, end_lat, end_lng, start_location, end_location, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          id,
-          user.id,
-          now.split("T")[0],
-          purpose || "Business",
+        await createMileageEntry(db, {
+          userId: user.id,
+          date: now.split("T")[0],
+          purpose: purpose || "Business",
           miles,
-          trackingStart.coords.latitude,
-          trackingStart.coords.longitude,
-          endLocation.coords.latitude,
-          endLocation.coords.longitude,
-          `${trackingStart.coords.latitude.toFixed(4)}, ${trackingStart.coords.longitude.toFixed(4)}`,
-          `${endLocation.coords.latitude.toFixed(4)}, ${endLocation.coords.longitude.toFixed(4)}`,
-          now,
-        );
+          startLat: trackingStart.coords.latitude,
+          startLng: trackingStart.coords.longitude,
+          endLat: endLocation.coords.latitude,
+          endLng: endLocation.coords.longitude,
+          startLocation: `${trackingStart.coords.latitude.toFixed(4)}, ${trackingStart.coords.longitude.toFixed(4)}`,
+          endLocation: `${endLocation.coords.latitude.toFixed(4)}, ${endLocation.coords.longitude.toFixed(4)}`,
+        });
 
         setIsTracking(false);
         setTrackingStart(null);
@@ -247,7 +204,7 @@ export default function MileageScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            await db.runAsync("DELETE FROM mileage_entries WHERE id = ?", id);
+            await deleteMileageEntry(db, id);
             loadEntries();
           },
         },

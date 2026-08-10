@@ -37,25 +37,26 @@ try {
 }
 
 // 2. Probe each core sync table (select limit 1 — read-only)
+// user_preferences uses a composite PK (user_id, key) — no `id` column.
 const tables = [
-  "accounts",
-  "categories",
-  "clients",
-  "transactions",
-  "tax_settings",
-  "user_preferences",
-  "users",
+  { name: "accounts", col: "id" },
+  { name: "categories", col: "id" },
+  { name: "clients", col: "id" },
+  { name: "transactions", col: "id" },
+  { name: "tax_settings", col: "id" },
+  { name: "user_preferences", col: "user_id" },
+  { name: "users", col: "id" },
 ];
-for (const t of tables) {
+for (const { name, col } of tables) {
   try {
-    const { data, error } = await supabase.from(t).select("id").limit(1);
+    const { data, error } = await supabase.from(name).select(col).limit(1);
     if (error) {
-      console.log(`TABLE ${t}: ERROR — ${error.code} ${error.message}`);
+      console.log(`TABLE ${name}: ERROR — ${error.code} ${error.message}`);
     } else {
-      console.log(`TABLE ${t}: OK (${data?.length ?? 0} rows returned)`);
+      console.log(`TABLE ${name}: OK (${data?.length ?? 0} rows returned)`);
     }
   } catch (e) {
-    console.log(`TABLE ${t}: THREW — ${e.message}`);
+    console.log(`TABLE ${name}: THREW — ${e.message}`);
   }
 }
 

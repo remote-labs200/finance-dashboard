@@ -42,7 +42,19 @@ export type UserPreferenceKey =
   | "calibration_state_rate"
   | "calibration_prior_year_tax"
   | "calibration_current_quarter"
-  | "calibration_safe_harbor";
+  | "calibration_safe_harbor"
+  // AI Financial Insights
+  | "ai_anomaly_alerts"
+  | "ai_weekly_digest"
+  | "ai_tax_opportunities"
+  | "ai_insight_frequency"
+  | "ai_forecast_threshold"
+  // Receipt OCR
+  | "ocr_auto_categorize"
+  | "ocr_extract_dates"
+  | "ocr_extract_merchants"
+  | "ocr_compress_images"
+  | "ocr_compression_level";
 
 const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   filing_status: "single",
@@ -78,6 +90,16 @@ const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   calibration_prior_year_tax: "0",
   calibration_current_quarter: "1",
   calibration_safe_harbor: "true",
+  ai_anomaly_alerts: "true",
+  ai_weekly_digest: "true",
+  ai_tax_opportunities: "true",
+  ai_insight_frequency: "weekly",
+  ai_forecast_threshold: "3000",
+  ocr_auto_categorize: "true",
+  ocr_extract_dates: "true",
+  ocr_extract_merchants: "true",
+  ocr_compress_images: "true",
+  ocr_compression_level: "balanced",
 };
 
 export async function getPreference(

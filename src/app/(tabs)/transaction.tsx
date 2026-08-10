@@ -22,6 +22,7 @@ import { findAccountsByUser } from "@/db/account-repo";
 import { findCategoriesByUser } from "@/db/category-repo";
 import { findClientsByUser } from "@/db/client-repo";
 import { useSQLiteContext } from "@/db/provider";
+import { getPreference } from "@/db/preferences-repo";
 import { Account, Category, Client } from "@/db/schema";
 import {
   createTransaction,
@@ -61,15 +62,17 @@ export default function TransactionScreen() {
     let mounted = true;
     (async () => {
       try {
-        const [accs, cats, clis] = await Promise.all([
+        const [accs, cats, clis, baseCurrency] = await Promise.all([
           findAccountsByUser(db, user.id),
           findCategoriesByUser(db, user.id),
           findClientsByUser(db, user.id),
+          getPreference(db, user.id, "base_currency"),
         ]);
         if (!mounted) return;
         setAccounts(accs);
         setCategories(cats);
         setClients(clis);
+        if (!isEditing) setCurrencyCode(baseCurrency);
       } catch (e: unknown) {
         if (e instanceof Error && e.message.includes("closed")) return;
         console.warn("load form data error:", e);
@@ -78,7 +81,7 @@ export default function TransactionScreen() {
     return () => {
       mounted = false;
     };
-  }, [db, user]);
+  }, [db, user, isEditing]);
 
   useEffect(() => {
     if (isEditing && id) {
@@ -90,8 +93,8 @@ export default function TransactionScreen() {
           setDate(txn.date);
           setIsIncome(txn.amountCents > 0);
           setCurrencyCode(txn.currencyCode);
-          setAccountId(txn.accountId);
-          setCategoryId(txn.categoryId);
+          setAccountId(txn.accountId ?? null);
+          setCategoryId(txn.categoryId ?? null);
           setClientId(txn.clientId ?? null);
         }
       })();
@@ -122,8 +125,8 @@ export default function TransactionScreen() {
         userId: user.id,
         amountCents: isIncome ? Math.abs(cents) : -Math.abs(cents),
         currencyCode,
-        accountId: accountId || "",
-        categoryId: categoryId || "",
+        accountId: accountId || undefined,
+        categoryId: categoryId || undefined,
         clientId: clientId || undefined,
         note: note || undefined,
         date,

@@ -668,7 +668,7 @@ export default function SettingsScreen() {
                 style={[styles.divider, { backgroundColor: theme.divider }]}
               />
               <Pressable
-                onPress={() => router.push("/(tabs)/clients")}
+                onPress={() => router.push("/(tabs)/(main)/clients")}
                 style={styles.row}
               >
                 <View style={styles.rowLeft}>
