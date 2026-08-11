@@ -5,6 +5,7 @@
  * Tapping navigates to /notifications.
  */
  
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -25,9 +26,7 @@ export default function NotificationBell() {
       onPress={() => router.push('/(tabs)/notifications')}
       hitSlop={12}>
       <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
-        <ThemedText style={styles.bellChar} themeColor="primaryText">
-          {'\u{1F514}' /* Bell emoji — cross-platform, works everywhere */}
-        </ThemedText>
+        <Ionicons name="notifications-outline" size={20} color={colors.primaryText} />
         {badgeCount > 0 && (
           <View style={[styles.badge, { backgroundColor: colors.danger }]}>
             <ThemedText style={styles.badgeText} themeColor="primaryText">
@@ -46,12 +45,8 @@ container: {},
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bellChar: {
-    fontSize: 20,
-    lineHeight: 24,
+    justifyContent: "center",
+    alignItems: "center",
   },
   badge: {
     position: 'absolute',

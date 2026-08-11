@@ -31,7 +31,7 @@ interface CategorySlice {
 
 const MONTH_LABEL = (m: number) => getMonthName(m).slice(0, 3);
 
-export default function TransactionAnalytics() {
+export default function Analytics() {
   const db = useSQLiteContext();
   const colors = useThemeColors();
   const user = useAuthStore((state) => state.user);

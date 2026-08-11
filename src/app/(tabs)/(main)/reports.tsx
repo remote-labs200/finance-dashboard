@@ -1,10 +1,16 @@
+import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import Analytics from "@/components/analytics";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { NeumorphicButton, NeumorphicCard } from "@/components/ui";
+import {
+  NeumorphicButton,
+  NeumorphicCard,
+  NeumorphicPressable,
+} from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useSQLiteContext } from "@/db/provider";
 import { getPreference } from "@/db/preferences-repo";
@@ -24,6 +30,17 @@ export default function ReportsScreen() {
   const db = useSQLiteContext();
   const user = useAuthStore((state) => state.user);
   const insets = useSafeAreaInsets();
+
+  const [activeTab, setActiveTab] = useState<"reports" | "analytics">(
+    "reports",
+  );
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
+
+  useEffect(() => {
+    if (requestedTab === "analytics") {
+      setActiveTab("analytics");
+    }
+  }, [requestedTab]);
 
   const [yearSummary, setYearSummary] = useState<{
     totalIncome: number;
@@ -169,11 +186,79 @@ export default function ReportsScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.safeArea}>
+        {/* ── Tab switcher ── */}
+        <View
+          style={[
+            styles.tabBar,
+            {
+              paddingTop: insets.top + Spacing.two,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
+        >
+          <NeumorphicPressable
+            inset
+            onPress={() => setActiveTab("reports")}
+            style={[
+              styles.tabBtn,
+              activeTab === "reports" && { backgroundColor: colors.primary },
+            ]}
+          >
+            <ThemedText
+              type="small"
+              style={{
+                color:
+                  activeTab === "reports" ? colors.primaryText : colors.text,
+                fontWeight: "600",
+              }}
+            >
+              Reports
+            </ThemedText>
+          </NeumorphicPressable>
+          <NeumorphicPressable
+            inset
+            onPress={() => setActiveTab("analytics")}
+            style={[
+              styles.tabBtn,
+              activeTab === "analytics" && { backgroundColor: colors.primary },
+            ]}
+          >
+            <ThemedText
+              type="small"
+              style={{
+                color:
+                  activeTab === "analytics"
+                    ? colors.primaryText
+                    : colors.text,
+                fontWeight: "600",
+              }}
+            >
+              Analytics
+            </ThemedText>
+          </NeumorphicPressable>
+        </View>
+
+        {activeTab === "analytics" ? (
+          <ScrollView
+            contentContainerStyle={[
+              styles.scroll,
+              {
+                paddingTop: Spacing.three,
+                paddingLeft: insets.left + Spacing.four,
+                paddingRight: insets.right + Spacing.four,
+                paddingBottom: insets.bottom + Spacing.five,
+              },
+            ]}
+          >
+            <Analytics />
+          </ScrollView>
+        ) : (
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
             {
-              paddingTop: insets.top + Spacing.three,
+              paddingTop: Spacing.three,
               paddingLeft: insets.left + Spacing.four,
               paddingRight: insets.right + Spacing.four,
             },
@@ -396,6 +481,7 @@ export default function ReportsScreen() {
 
           <View style={{ height: BottomTabInset + Spacing.six }} />
         </ScrollView>
+        )}
       </View>
     </ThemedView>
   );
@@ -404,6 +490,17 @@ export default function ReportsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
+  tabBar: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    paddingBottom: Spacing.two,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    alignItems: "center",
+  },
   scroll: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,

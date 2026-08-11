@@ -300,7 +300,12 @@ export default function DashboardScreen() {
           <View style={styles.navRight}>
             <NotificationBell />
             <Pressable
-              onPress={() => router.push("/(tabs)/reports")}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/reports",
+                  params: { tab: "analytics" },
+                })
+              }
               style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.6 }]}
             >
               <SymbolView

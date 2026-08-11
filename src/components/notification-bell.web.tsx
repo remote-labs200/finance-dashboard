@@ -5,6 +5,7 @@
  * renders inline next to the "PaySmooth" brand text in the web tab bar.
  */
 
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 
@@ -26,9 +27,7 @@ export default function NotificationBell() {
       hitSlop={8}
     >
       <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
-        <ThemedText style={styles.bellChar} themeColor="primaryText">
-          {"\u{1F514}"}
-        </ThemedText>
+        <Ionicons name="notifications-outline" size={16} color={colors.primaryText} />
         {badgeCount > 0 && (
           <View style={[styles.badge, { backgroundColor: colors.danger }]}>
             <ThemedText style={styles.badgeText} themeColor="primaryText">
@@ -51,10 +50,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-  },
-  bellChar: {
-    fontSize: 16,
-    lineHeight: 20,
   },
   badge: {
     position: "absolute",
