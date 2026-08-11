@@ -44,15 +44,8 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="clients">
         <NativeTabs.Trigger.Label>Clients</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="people-outline" />}
-        />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="account">
-        <NativeTabs.Trigger.Label>Account</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="person-outline" />}
-        />
+           src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="people-outline" />}
+         />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

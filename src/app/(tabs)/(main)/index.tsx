@@ -278,13 +278,51 @@ export default function DashboardScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.safeArea}>
+        {/* Top Navbar */}
+        <View style={[styles.topNavbar, { paddingTop: insets.top }]}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/account")}
+            style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.6 }]}
+          >
+            <SymbolView
+              name={{
+                ios: "person.circle",
+                android: "person",
+                web: "person",
+              }}
+              size={24}
+              tintColor={colors.text}
+            />
+          </Pressable>
+
+          <ThemedText type="title">Dashboard</ThemedText>
+
+          <View style={styles.navRight}>
+            <NotificationBell />
+            <Pressable
+              onPress={() => router.push("/(tabs)/reports")}
+              style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.6 }]}
+            >
+              <SymbolView
+                name={{
+                  ios: "chart.bar.fill",
+                  android: "analytics",
+                  web: "analytics",
+                }}
+                size={22}
+                tintColor={colors.text}
+              />
+            </Pressable>
+          </View>
+        </View>
+
         <FlashList
           data={recentTxns}
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
             styles.scroll,
             {
-              paddingTop: insets.top + Spacing.three,
+              paddingTop: Spacing.three,
               paddingLeft: insets.left + Spacing.four,
               paddingRight: insets.right + Spacing.four,
             },
@@ -294,10 +332,6 @@ export default function DashboardScreen() {
           }
           ListHeaderComponent={
             <View style={styles.headerSection}>
-              <View style={styles.headerRow}>
-                <ThemedText type="title">Dashboard</ThemedText>
-                <NotificationBell />
-              </View>
               <ThemedText type="small" themeColor="textSecondary">
                 {monthName}
               </ThemedText>
@@ -869,11 +903,21 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-  headerRow: {
+  topNavbar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    width: "100%",
+    paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.two,
+  },
+  navBtn: {
+    padding: Spacing.one,
+    borderRadius: Spacing.two,
+  },
+  navRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
   },
   scroll: {
     paddingHorizontal: Spacing.four,

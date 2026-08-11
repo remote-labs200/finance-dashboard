@@ -479,16 +479,6 @@ export default function AccountScreen() {
         },
         {
           icon: {
-            ios: "rectangle.3.group",
-            android: "view_quilt",
-            web: "view_quilt",
-          },
-          label: "Navbar Position",
-          description: "Move tab bar to the top or keep it at the bottom.",
-          onPress: () => navigateTo("/(tabs)/navbar-position"),
-        },
-        {
-          icon: {
             ios: "textformat.size",
             android: "format_size",
             web: "format_size",

@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import TransactionAnalytics from "@/components/transaction-analytics";
 import {
   NeumorphicButton,
   NeumorphicInput,
@@ -41,6 +42,8 @@ export default function TransactionScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
+
+  const [activeTab, setActiveTab] = useState<"form" | "analytics">("form");
 
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -157,11 +160,81 @@ export default function TransactionScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.safeArea}>
-        <KeyboardAvoidingView
-          style={styles.keyboardAvoid}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "android" ? 20 : 0}
+        {/* ── Tab switcher ── */}
+        <View
+          style={[
+            styles.tabBar,
+            {
+              paddingTop: insets.top + Spacing.two,
+              paddingLeft: insets.left + Spacing.four,
+              paddingRight: insets.right + Spacing.four,
+            },
+          ]}
         >
+          <NeumorphicPressable
+            inset
+            onPress={() => setActiveTab("form")}
+            style={[
+              styles.tabBtn,
+              activeTab === "form" && { backgroundColor: colors.primary },
+            ]}
+          >
+            <ThemedText
+              type="small"
+              style={{
+                color:
+                  activeTab === "form" ? colors.primaryText : colors.text,
+                fontWeight: "600",
+              }}
+            >
+              {isEditing ? "Edit" : "New"}
+            </ThemedText>
+          </NeumorphicPressable>
+          <NeumorphicPressable
+            inset
+            onPress={() => setActiveTab("analytics")}
+            style={[
+              styles.tabBtn,
+              activeTab === "analytics" && {
+                backgroundColor: colors.primary,
+              },
+            ]}
+          >
+            <ThemedText
+              type="small"
+              style={{
+                color:
+                  activeTab === "analytics"
+                    ? colors.primaryText
+                    : colors.text,
+                fontWeight: "600",
+              }}
+            >
+              Analytics
+            </ThemedText>
+          </NeumorphicPressable>
+        </View>
+
+        {activeTab === "analytics" ? (
+          <ScrollView
+            contentContainerStyle={[
+              styles.scroll,
+              {
+                paddingTop: Spacing.three,
+                paddingLeft: insets.left + Spacing.four,
+                paddingRight: insets.right + Spacing.four,
+                paddingBottom: insets.bottom + Spacing.five,
+              },
+            ]}
+          >
+            <TransactionAnalytics />
+          </ScrollView>
+        ) : (
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoid}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "android" ? 20 : 0}
+          >
           <ScrollView
             contentContainerStyle={[
               styles.scroll,
@@ -432,7 +505,8 @@ export default function TransactionScreen() {
 
             <View style={{ height: 40 }} />
           </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        )}
       </View>
     </ThemedView>
   );
@@ -442,6 +516,17 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   keyboardAvoid: { flex: 1 },
+  tabBar: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    paddingBottom: Spacing.two,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    alignItems: "center",
+  },
   scroll: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.five,

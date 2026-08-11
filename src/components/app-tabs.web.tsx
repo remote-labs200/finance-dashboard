@@ -13,7 +13,6 @@ import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
 
 import { MaxContentWidth, Spacing } from "@/constants/theme";
-import { useNavbarPosition } from "@/stores/use-ui-prefs";
 
 export default function AppTabs() {
   return (
@@ -35,9 +34,6 @@ export default function AppTabs() {
           </TabTrigger>
           <TabTrigger name="clients" href="/clients" asChild>
             <TabButton>Clients</TabButton>
-          </TabTrigger>
-          <TabTrigger name="account" href="/account" asChild>
-            <TabButton>Account</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -68,15 +64,12 @@ export function TabButton({
 }
 
 export function CustomTabList(props: TabListProps) {
-  const navbarPosition = useNavbarPosition();
-  const isTop = navbarPosition === "top";
-
   return (
     <View
       {...props}
       style={[
         styles.tabListContainer,
-        isTop ? styles.tabListTop : styles.tabListBottom,
+        styles.tabListBottom,
       ]}
     >
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
@@ -99,9 +92,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     flexDirection: "row",
-  },
-  tabListTop: {
-    top: 0,
   },
   tabListBottom: {
     bottom: 0,
