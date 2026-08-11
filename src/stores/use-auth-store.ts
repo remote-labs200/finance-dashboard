@@ -9,7 +9,9 @@ import {
   updatePasswordHash,
   updateUserEmail,
 } from "@/db/user-repo";
+import { setPreference } from "@/db/preferences-repo";
 import { hashPassword, verifyPassword } from "@/lib/password-hash";
+import { syncMarketingContact } from "@/lib/email-service";
 import { supabase } from "@/lib/supabase";
 import { performFullSync, refreshFromCloud } from "@/lib/sync-service";
 
@@ -55,6 +57,7 @@ interface AuthState {
     db: SQLite.SQLiteDatabase,
     email: string,
     password: string,
+    marketingOptIn?: boolean,
   ) => Promise<void>;
 
   signOut: () => Promise<void>;
@@ -275,7 +278,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   // ──────────────────────────────────────────────
   //  signUp — requires Supabase, stores local hash
   // ──────────────────────────────────────────────
-  signUp: async (db, email, password) => {
+  signUp: async (db, email, password, marketingOptIn = false) => {
     const trimmedEmail = email.trim().toLowerCase();
 
     if (!isSupabaseConfigured || !supabase) {
@@ -305,10 +308,26 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       await storeCredentialsInSecureStore(trimmedEmail, pwHash, localUser.id);
 
+      // Persist marketing consent (cloud-first) BEFORE syncing so the edge
+      // function can enforce it server-side.
+      await setPreference(
+        db,
+        localUser.id,
+        "marketing_consent",
+        marketingOptIn ? "true" : "false",
+      );
+
       // Cloud-first: refresh cache (new user = nothing to pull yet)
       await refreshFromCloud(db);
 
       set({ user: { id: localUser.id, email: localUser.email } });
+
+      // Fire-and-forget: subscribe opted-in users to the marketing list
+      // (Sender.net). Must never block signup — it no-ops if unconfigured
+      // or when consent was not given (also enforced by the edge function).
+      if (marketingOptIn) {
+        syncMarketingContact({ email: trimmedEmail }).catch(() => {});
+      }
     }
   },
 

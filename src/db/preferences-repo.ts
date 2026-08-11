@@ -10,6 +10,18 @@ export type UserPreferenceKey =
   | "tax_year"
   | "default_currency"
   | "notifications_enabled"
+  // Push notifications
+  | "push_token"
+  // Marketing consent (gates the Sender.net sync)
+  | "marketing_consent"
+  // Per-type notification preferences
+  | "notif_tax_deadline"
+  | "notif_payment_reminder"
+  | "notif_weekly_summary"
+  | "notif_anomaly"
+  | "notif_sync_status"
+  | "notif_feature"
+  | "notif_system"
   // Profile fields
   | "profile_first_name"
   | "profile_last_name"
@@ -62,6 +74,15 @@ const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   tax_year: String(new Date().getFullYear()),
   default_currency: "USD",
   notifications_enabled: "true",
+  push_token: "",
+  marketing_consent: "false",
+  notif_tax_deadline: "true",
+  notif_payment_reminder: "true",
+  notif_weekly_summary: "true",
+  notif_anomaly: "true",
+  notif_sync_status: "true",
+  notif_feature: "true",
+  notif_system: "true",
   profile_first_name: "",
   profile_last_name: "",
   profile_business_phone: "",

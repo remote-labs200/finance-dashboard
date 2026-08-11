@@ -1,7 +1,5 @@
-import { File as ExpoFile, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
@@ -15,6 +13,7 @@ import {
   getMonthlyTotals,
   getYearToDateSummary,
 } from "@/db/transaction-repo";
+import { downloadTextFile } from "@/lib/export-utils";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency, getMonthName } from "@/lib/format";
 import { estimateAnnualTax, toFilingStatus } from "@/lib/tax-engine";
@@ -117,17 +116,7 @@ export default function ReportsScreen() {
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 
     const fileName = `smoootax-export-${currentYear}.csv`;
-    const file = new ExpoFile(Paths.document, fileName);
-    await file.write(csv);
-
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(file.uri, {
-        mimeType: "text/csv",
-        dialogTitle: "Export Transactions",
-      });
-    } else {
-      Alert.alert("Exported", `File saved to: ${fileName}`);
-    }
+    await downloadTextFile(fileName, csv, "text/csv", "Export Transactions");
   }, [db, user, currentYear]);
 
   const exportScheduleC = useCallback(async () => {
@@ -174,17 +163,7 @@ export default function ReportsScreen() {
     report += `Effective Rate: ${taxEstimate.effectiveRate.toFixed(1)}%\n`;
 
     const fileName = `schedule-c-${currentYear}.txt`;
-    const file = new ExpoFile(Paths.document, fileName);
-    await file.write(report);
-
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(file.uri, {
-        mimeType: "text/plain",
-        dialogTitle: "Schedule C Summary",
-      });
-    } else {
-      Alert.alert("Exported", `File saved to: ${fileName}`);
-    }
+    await downloadTextFile(fileName, report, "text/plain", "Schedule C Summary");
   }, [db, user, currentYear, yearSummary, taxEstimate, baseCurrency]);
 
   return (

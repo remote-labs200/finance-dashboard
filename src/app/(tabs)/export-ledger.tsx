@@ -10,6 +10,7 @@ import { useSQLiteContext } from "@/db/provider";
 import { getPreference } from "@/db/preferences-repo";
 import type { Transaction } from "@/db/schema";
 import { findTransactionsByUser } from "@/db/transaction-repo";
+import { sendTransactionalEmail } from "@/lib/email-service";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -381,6 +382,37 @@ export default function ExportLedgerScreen() {
     }
   }, [isExporting, buildExportContent, selectedFormat, selectedScope]);
 
+  const [emailing, setEmailing] = useState(false);
+
+  // Email a copy of the export to the signed-in user via Brevo
+  // (the edge function sends to the caller's own auth email).
+  const handleEmailExport = useCallback(async () => {
+    if (!user || emailing) return;
+    setEmailing(true);
+    try {
+      const content = buildExportContent();
+      const MAX_BODY = 90_000;
+      const truncated = content.length > MAX_BODY;
+      await sendTransactionalEmail({
+        subject: `PaySmooth ${selectedFormat.toUpperCase()} export — ${new Date().toLocaleDateString()}`,
+        text: truncated
+          ? `${content.slice(0, MAX_BODY)}\n\n[Truncated — full export is ${(content.length / 1024).toFixed(0)} KB]`
+          : content,
+        toName: user.email?.split("@")[0] ?? "",
+      });
+      Alert.alert(
+        "Email Sent",
+        truncated
+          ? "A truncated copy of your export was sent to your email."
+          : `A copy of your export was sent to ${user.email}.`,
+      );
+    } catch (e: any) {
+      Alert.alert("Email Failed", e?.message ?? "Could not send the email.");
+    } finally {
+      setEmailing(false);
+    }
+  }, [user, emailing, buildExportContent, selectedFormat]);
+
   // Summary stats from real data
   const totalIncome = transactions
     .filter((t) => t.amountCents > 0)
@@ -574,6 +606,16 @@ export default function ExportLedgerScreen() {
               : `Export as ${selectedFormat.toUpperCase()}`}
           </NeumorphicButton>
 
+          {/* Email a copy */}
+          <NeumorphicButton
+            variant="secondary"
+            onPress={handleEmailExport}
+            disabled={!loaded || emailing}
+            style={[styles.emailBtn, { opacity: !loaded || emailing ? 0.6 : 1 }]}
+          >
+            {emailing ? "Sending..." : "Email a copy to me"}
+          </NeumorphicButton>
+
           {/* Info */}
           <View style={styles.infoBox}>
             <SymbolView
@@ -681,6 +723,11 @@ const styles = StyleSheet.create({
   exportBtn: {
     paddingVertical: Spacing.three,
     minHeight: 48,
+  },
+  emailBtn: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
   },
   infoBox: {
     flexDirection: "row",

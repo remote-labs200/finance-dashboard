@@ -40,7 +40,17 @@
  */
 
 import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import * as SQLite from 'expo-sqlite';
+import Constants from 'expo-constants';
 import { getQuarterlyDueDates, daysUntil } from './format';
+import { supabase } from './supabase';
+import { getPreference, setPreference } from '../db/preferences-repo';
+import {
+  useNotificationStore,
+  type NotificationItem,
+  type NotificationType,
+} from '../stores/use-notification-store';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -126,68 +136,119 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 /**
  * Schedule reminders for upcoming quarterly tax deadlines.
- * Schedules notifications 7 days and 1 day before each deadline.
+ * Schedules 7-day and 1-day warnings before each quarter's due date, for the
+ * given year and the following year (covers Q4 of the current year, which
+ * falls in January of the next).
+ *
+ * Each scheduled notification carries `channelId` in its data so it can be
+ * cancelled/re-scheduled alongside Android channel setup.
  */
-export async function scheduleTaxDeadlineReminders(year: number): Promise<void> {
+export async function scheduleTaxDeadlineReminders(
+  year: number = new Date().getFullYear(),
+): Promise<void> {
   const Notifications = await ensureHandler();
   if (!Notifications) return;
 
   try {
     await cancelNotificationsByChannel(Notifications, TAX_CHANNEL_ID);
 
-    const deadlines = getQuarterlyDueDates(year);
+    // Deduplicate deadlines by due date across the two years.
+    const deadlines = new Map<string, number>();
+    for (const y of [year, year + 1]) {
+      for (const d of getQuarterlyDueDates(y)) {
+        deadlines.set(d.dueDate, d.quarter);
+      }
+    }
+
     const now = Date.now();
 
-    for (const deadline of deadlines) {
-      const days = daysUntil(deadline.dueDate);
-
+    for (const [dueDate, quarter] of deadlines) {
+      const days = daysUntil(dueDate);
       if (days <= 0) continue;
 
-      // 7-day reminder
-      if (days > 7) {
-        const triggerDate = new Date(deadline.dueDate + 'T09:00:00');
-        triggerDate.setDate(triggerDate.getDate() - 7);
+      const reminders: Array<{
+        daysEarly: number;
+        title: string;
+        body: string;
+      }> = [
+        {
+          daysEarly: 7,
+          title: 'Tax Deadline Approaching',
+          body: `Your Q${quarter} estimated tax payment is due in 7 days (${dueDate}).`,
+        },
+        {
+          daysEarly: 1,
+          title: 'Tax Deadline Tomorrow!',
+          body: `Your Q${quarter} estimated tax payment is due tomorrow. Don't forget to submit.`,
+        },
+      ];
 
-        if (triggerDate.getTime() > now) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Tax Deadline Approaching',
-              body: `Your Q${deadline.quarter} estimated tax payment is due in 7 days (${deadline.dueDate}).`,
-              data: { type: 'tax_deadline', quarter: deadline.quarter },
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: triggerDate,
+      for (const reminder of reminders) {
+        if (days <= reminder.daysEarly) continue;
+        const triggerDate = new Date(`${dueDate}T09:00:00`);
+        triggerDate.setDate(triggerDate.getDate() - reminder.daysEarly);
+
+        if (triggerDate.getTime() <= now) continue;
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: reminder.title,
+            body: reminder.body,
+            data: {
+              type: 'tax_deadline',
+              quarter,
               channelId: TAX_CHANNEL_ID,
             },
-          });
-        }
-      }
-
-      // 1-day reminder
-      if (days > 1) {
-        const triggerDate = new Date(deadline.dueDate + 'T09:00:00');
-        triggerDate.setDate(triggerDate.getDate() - 1);
-
-        if (triggerDate.getTime() > now) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Tax Deadline Tomorrow!',
-              body: `Your Q${deadline.quarter} estimated tax payment is due tomorrow. Don't forget to submit.`,
-              data: { type: 'tax_deadline', quarter: deadline.quarter },
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: triggerDate,
-              channelId: TAX_CHANNEL_ID,
-            },
-          });
-        }
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate,
+            channelId: TAX_CHANNEL_ID,
+          },
+        });
       }
     }
   } catch {
     // Silently fail if notifications are unavailable
   }
+}
+
+/**
+ * Cancel all scheduled tax-deadline reminders (used when the user disables
+ * tax notifications or signs out).
+ */
+export async function cancelTaxDeadlineReminders(): Promise<void> {
+  const Notifications = await ensureHandler();
+  if (!Notifications) return;
+  try {
+    await cancelNotificationsByChannel(Notifications, TAX_CHANNEL_ID);
+  } catch {
+    // Silently fail
+  }
+}
+
+/**
+ * Re-arm the tax-deadline notifications to match the user's current
+ * notification preferences. When the master switch or the tax-deadline type
+ * is disabled, any previously scheduled reminders are cancelled.
+ *
+ * Call this on sign-in and whenever notification preferences change.
+ */
+export async function refreshTaxDeadlineReminders(
+  db: SQLite.SQLiteDatabase,
+  userId: string,
+): Promise<void> {
+  const [master, taxEnabled] = await Promise.all([
+    getPreference(db, userId, 'notifications_enabled'),
+    getPreference(db, userId, 'notif_tax_deadline'),
+  ]);
+
+  if (master === 'false' || taxEnabled === 'false') {
+    await cancelTaxDeadlineReminders();
+    return;
+  }
+
+  await scheduleTaxDeadlineReminders();
 }
 
 // --- Income Smoothing Notifications ---
@@ -278,52 +339,348 @@ export async function setBadgeCount(count: number): Promise<void> {
 }
 
 // =============================================================================
-// Push Notifications (to build)
+// Push Notifications
 // =============================================================================
-// Run `grep -n 'TODO-PUSH' src/lib/notification-service.ts` to find all stubs.
-// See BLUEPRINT.md → Push Notifications for full spec.
+// Real-time server-sent notifications delivered via the Expo Push API and
+// recorded in the `push_notifications` table for the in-app feed.
+//
+// Flow:
+//   1. App registers its Expo push token → `user_preferences` (key push_token)
+//   2. Server / other devices call the `notify-push` edge function →
+//      sends via Expo Push API + INSERTs into `push_notifications`
+//   3. App listens on a Realtime channel for that INSERT → in-app feed updates
+//   4. On sign-in the app re-pulls recent rows so the feed survives restarts
+//   5. Tapping a notification deep-links to the relevant screen
+//
+// Note: in Expo Go the metro resolver swaps expo-notifications for
+// expo-notifications-stub.ts (SDK 53+ removed Android push support). Every
+// function below degrades gracefully to a no-op in that case.
 // =============================================================================
 
+const PUSH_TOKEN_KEY = 'expo_push_token';
+
+const NOTIFICATION_TYPES: NotificationType[] = [
+  'tax_deadline',
+  'payment_reminder',
+  'weekly_summary',
+  'anomaly',
+  'sync_status',
+  'feature',
+  'system',
+];
+
+interface PushNotificationRow {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string;
+  action_route: string | null;
+  data?: Record<string, unknown> | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+function rowToNotificationItem(row: PushNotificationRow): NotificationItem {
+  return {
+    id: row.id,
+    type: NOTIFICATION_TYPES.includes(row.type as NotificationType)
+      ? (row.type as NotificationType)
+      : 'system',
+    title: row.title,
+    body: row.body,
+    createdAt: Date.parse(row.created_at) || Date.now(),
+    read: row.is_read,
+    actionRoute: row.action_route ?? undefined,
+  };
+}
+
 /**
- * TODO-PUSH-1: Register Expo Push Token
+ * TODO-PUSH-1 ✅: Register the device's Expo push token.
  *
- * - Generate an ExpoPushToken via Notifications.getExpoPushTokenAsync({ projectId })
- * - Persist it to Supabase user_preferences via preferences-repo
- * - This lets downstream Edge Functions (like the payment processor) send
- *   real-time push notifications to this specific device.
+ * - Generates an ExpoPushToken via `getExpoPushTokenAsync({ projectId })`
+ * - Persists it to `user_preferences` (key `push_token`) so the `notify-push`
+ *   edge function can reach this device
+ * - Also caches it in SecureStore for offline reference
+ *
+ * No-ops in Expo Go (the metro stub returns a fake token and/or the EAS
+ * project id is missing).
  */
-export async function registerPushToken(): Promise<void> {
+export async function registerPushToken(
+  db: SQLite.SQLiteDatabase,
+  userId: string,
+): Promise<void> {
   const Notifications = await loadNotifications();
-  if (!Notifications) throw new Error('expo-notifications is not available in this environment');
-  throw new Error('TODO-PUSH-1: registerPushToken not yet implemented');
+  if (!Notifications) return;
+
+  let token: { data: string } | null = null;
+  try {
+    token = await Notifications.getExpoPushTokenAsync({
+      projectId: getExpoProjectId(),
+    });
+  } catch {
+    // Missing EAS project id (Expo Go / no eas.json) — nothing to register.
+    return;
+  }
+
+  // The metro stub returns a fixed fake token — don't sync it.
+  if (!token || !token.data || token.data === 'stub-push-token') return;
+  if (!token.data.startsWith('ExponentPushToken')) return;
+
+  try {
+    await SecureStore.setItemAsync(PUSH_TOKEN_KEY, token.data);
+  } catch {
+    // SecureStore unavailable — still sync to the cloud below.
+  }
+
+  try {
+    await setPreference(db, userId, 'push_token', token.data);
+  } catch (err) {
+    console.warn('Failed to sync push token:', err);
+  }
+}
+
+function getExpoProjectId(): string | undefined {
+  // Available in Expo SDK 57; undefined in Expo Go without an EAS project.
+  return (
+    Constants.easConfig?.projectId ??
+    Constants.expoConfig?.extra?.eas?.projectId
+  );
 }
 
 /**
- * TODO-PUSH-2: Subscribe to Supabase Realtime Channel for Push Events
+ * TODO-PUSH-2 ✅: Subscribe to Supabase Realtime for push events.
  *
- * This client-side subscription listens for INSERT events on a dedicated
- * `push_notifications` table (or listens on a Supabase Realtime broadcast channel).
- * When a new push event arrives, it triggers a local notification so the user
- * sees it even if the app is in the foreground.
- *
- * Edge Functions like `notify-push` INSERT into this table after sending via
- * Expo Push API.
+ * Listens for INSERTs on `public.push_notifications` scoped to this user and
+ * surfaces them in the in-app notification store instantly. Returns an
+ * unsubscribe function.
  */
-export function subscribeToRealtimePushEvents(): () => void {
-  throw new Error('TODO-PUSH-2: subscribeToRealtimePushEvents not yet implemented');
+export function subscribeToRealtimePushEvents(
+  userId: string,
+): () => void {
+  if (!supabase || !userId) return () => {};
+
+  const client = supabase;
+  const channel = client
+    .channel(`push-notifications:${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'push_notifications',
+        filter: `user_id=eq.${userId}`,
+      },
+      (payload) => {
+        const row = payload.new as PushNotificationRow | undefined;
+        if (!row) return;
+        useNotificationStore.getState().addNotification({
+          type: NOTIFICATION_TYPES.includes(row.type as NotificationType)
+            ? (row.type as NotificationType)
+            : 'system',
+          title: row.title,
+          body: row.body,
+          actionRoute: row.action_route ?? undefined,
+        });
+      },
+    )
+    .subscribe();
+
+  return () => {
+    client.removeChannel(channel);
+  };
 }
 
 /**
- * TODO-PUSH-3: Handle Notification Tap with Deep Link
- *
- * When the user taps a push notification, route them to the relevant screen.
- * - 'payment_received' → /accounts screen
- * - 'sync_complete' → /cloud-sync screen
- * - 'tax_deadline' → /tax-config screen
- * - 'ai_insight_ready' → /insights screen
- *
- * Wire this into _layout.tsx's onNotificationResponse handler.
+ * Pull recent push notifications from the cloud into the in-app feed.
+ * Call after sign-in so the notification center survives app restarts.
  */
-export async function handleNotificationResponse(): Promise<void> {
-  throw new Error('TODO-PUSH-3: handleNotificationResponse not yet implemented');
+export async function fetchNotificationHistory(
+  userId: string,
+): Promise<void> {
+  if (!supabase || !userId) return;
+
+  const { data, error } = await supabase
+    .from('push_notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error || !data) return;
+
+  const store = useNotificationStore.getState();
+  const existing = store.notifications;
+  const dbIds = new Set((data as PushNotificationRow[]).map((r) => r.id));
+  const locals = existing.filter((n) => !dbIds.has(n.id));
+  store.setNotifications([
+    ...(data as PushNotificationRow[]).map(rowToNotificationItem),
+    ...locals,
+  ]);
+}
+
+/**
+ * Mark a single notification as read in the cloud (and locally).
+ */
+export async function markNotificationRead(
+  userId: string,
+  notificationId: string,
+): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase
+      .from('push_notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('id', notificationId);
+  } catch {
+    // Best-effort — local read state still updates.
+  }
+}
+
+/**
+ * Mark all of a user's notifications as read in the cloud.
+ */
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase
+      .from('push_notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
+ * Clear a user's notification history from the cloud.
+ */
+export async function clearNotificationHistory(
+  userId: string,
+): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase
+      .from('push_notifications')
+      .delete()
+      .eq('user_id', userId);
+  } catch {
+    // Best-effort.
+  }
+}
+
+/**
+ * Helper to push a notification through the `notify-push` edge function.
+ * Used by the app itself when it wants to trigger a push (e.g. a test).
+ */
+export async function sendPushNotification(
+  userId: string,
+  payload: {
+    title: string;
+    body: string;
+    type?: string;
+    actionRoute?: string;
+    data?: Record<string, unknown>;
+  },
+): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase.functions.invoke('notify-push', {
+      body: { user_id: userId, ...payload },
+    });
+  } catch (err) {
+    console.warn('sendPushNotification failed:', err);
+  }
+}
+
+// --- Notification tap → deep link ---
+
+interface NotificationTapPayload {
+  type: string;
+  actionRoute: string | null;
+  data?: Record<string, unknown>;
+}
+
+function extractTapPayload(response: {
+  notification?: {
+    request?: { content?: { data?: Record<string, unknown> } };
+  };
+}): NotificationTapPayload | null {
+  const data = response?.notification?.request?.content?.data;
+  if (!data || typeof data !== 'object') return null;
+  return {
+    type: typeof data.type === 'string' ? data.type : 'system',
+    actionRoute: typeof data.actionRoute === 'string' ? data.actionRoute : null,
+    data,
+  };
+}
+
+/**
+ * Return the tap payload when the app was opened by tapping a notification
+ * (cold start). Returns null when launched normally.
+ */
+export async function getInitialNotificationResponse(): Promise<NotificationTapPayload | null> {
+  const Notifications = await loadNotifications();
+  if (!Notifications) return null;
+  try {
+    if (typeof Notifications.getLastNotificationResponseAsync !== 'function') {
+      return null;
+    }
+    const response = await Notifications.getLastNotificationResponseAsync();
+    if (!response) return null;
+    return extractTapPayload(response as never);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * TODO-PUSH-3 ✅: Handle notification taps (warm start).
+ *
+ * Invoke `onTap` with the notification's type / actionRoute whenever the user
+ * taps a push notification while the app is running. Returns an unsubscribe
+ * function. Wire this into the root layout and route via the type map.
+ */
+export function addNotificationTapListener(
+  onTap: (payload: NotificationTapPayload) => void,
+): () => void {
+  let subscription: { remove: () => void } | null = null;
+
+  loadNotifications().then((Notifications) => {
+    if (!Notifications) return;
+    subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const payload = extractTapPayload(response as never);
+        if (payload) onTap(payload);
+      },
+    );
+  });
+
+  return () => {
+    subscription?.remove();
+  };
+}
+
+/**
+ * Map a notification type to the route that should open when it's tapped.
+ * Falls back to the explicit `actionRoute` when present.
+ */
+export function routeForNotification(payload: {
+  type: string;
+  actionRoute?: string | null;
+}): string | null {
+  if (payload.actionRoute) return payload.actionRoute;
+  const byType: Record<string, string> = {
+    tax_deadline: '/(tabs)/tax-config',
+    payment_reminder: '/(tabs)/(main)/clients',
+    payment_received: '/(tabs)/(main)/clients',
+    weekly_summary: '/(tabs)/reports',
+    sync_status: '/(tabs)/cloud-sync',
+    anomaly: '/(tabs)/insights',
+    ai_insight_ready: '/(tabs)/insights',
+    feature: '/(tabs)/notifications',
+  };
+  return byType[payload.type] ?? null;
 }

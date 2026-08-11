@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PasswordInput } from "@/components/password-input";
+import { MarketingConsentCheckbox } from "@/components/marketing-consent-checkbox";
 import { ThemedText } from "@/components/themed-text";
 import { NeumorphicButton, NeumorphicInput } from "@/components/ui";
 import { Spacing } from "@/constants/theme";
@@ -27,6 +28,7 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const signUp = useAuthStore((state) => state.signUp);
   const db = useSQLiteContext();
@@ -44,7 +46,7 @@ export default function SignUpScreen() {
 
     setLoading(true);
     try {
-      await signUp(db, email, password);
+      await signUp(db, email, password, marketingOptIn);
     } catch (error: any) {
       Alert.alert("Sign Up Failed", error.message);
     } finally {
@@ -143,6 +145,12 @@ export default function SignUpScreen() {
                       Passwords do not match
                     </ThemedText>
                   ) : null}
+
+                  {/* Marketing consent */}
+                  <MarketingConsentCheckbox
+                    value={marketingOptIn}
+                    onChange={setMarketingOptIn}
+                  />
 
                   {/* Sign Up button */}
                   <NeumorphicButton

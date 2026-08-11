@@ -10,6 +10,7 @@
  */
 
 import { FlashList } from "@shopify/flash-list";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,10 +21,17 @@ import { NeumorphicPressable, NeumorphicSurface } from "@/components/ui";
 import { Colors, Spacing } from "@/constants/theme";
 import { useResolvedThemeName } from "@/hooks/use-theme";
 import {
+  clearNotificationHistory,
+  fetchNotificationHistory,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/notification-service";
+import {
   useNotificationStore,
   type NotificationItem,
   type NotificationType,
 } from "@/stores/use-notification-store";
+import { useAuthStore } from "@/stores/use-auth-store";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -51,7 +59,7 @@ const TYPE_META: Record<NotificationType, { icon: string; label: string }> = {
 
 // ── Row ──────────────────────────────────────────────────────────────
 
-function NotificationRow({ item }: { item: NotificationItem }) {
+function NotificationRow({ item, userId }: { item: NotificationItem; userId?: string }) {
   const markRead = useNotificationStore((s) => s.markRead);
   const dismiss = useNotificationStore((s) => s.dismissNotification);
   const themeName = useResolvedThemeName();
@@ -63,7 +71,10 @@ function NotificationRow({ item }: { item: NotificationItem }) {
     <NeumorphicPressable
       inset={!item.read}
       onPress={() => {
-        if (!item.read) markRead(item.id);
+        if (!item.read) {
+          markRead(item.id);
+          if (userId) markNotificationRead(userId, item.id).catch(() => {});
+        }
       }}
       onLongPress={() => dismiss(item.id)}
       style={styles.row}
@@ -111,9 +122,19 @@ export default function NotificationsScreen() {
   const notifications = useNotificationStore((s) => s.notifications);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
   const clearAll = useNotificationStore((s) => s.clearAll);
+  const user = useAuthStore((state) => state.user);
   const themeName = useResolvedThemeName();
   const colors = Colors[themeName];
   const insets = useSafeAreaInsets();
+
+  const userId = user?.id;
+
+  // Restore the persisted feed from the cloud whenever the screen is shown.
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) fetchNotificationHistory(userId).catch(() => {});
+    }, [userId]),
+  );
 
   const hasUnread = useMemo(
     () => notifications.some((n) => !n.read),
@@ -121,8 +142,10 @@ export default function NotificationsScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: NotificationItem }) => <NotificationRow item={item} />,
-    [],
+    ({ item }: { item: NotificationItem }) => (
+      <NotificationRow item={item} userId={userId} />
+    ),
+    [userId],
   );
 
   const keyExtractor = useCallback((item: NotificationItem) => item.id, []);
@@ -136,7 +159,13 @@ export default function NotificationsScreen() {
         {notifications.length > 0 && (
           <View style={styles.headerActions}>
             {hasUnread && (
-              <Pressable onPress={markAllRead} hitSlop={8}>
+              <Pressable
+                onPress={() => {
+                  markAllRead();
+                  if (userId) markAllNotificationsRead(userId).catch(() => {});
+                }}
+                hitSlop={8}
+              >
                 <ThemedText
                   type="small"
                   style={{
@@ -148,7 +177,13 @@ export default function NotificationsScreen() {
                 </ThemedText>
               </Pressable>
             )}
-            <Pressable onPress={clearAll} hitSlop={8}>
+            <Pressable
+              onPress={() => {
+                clearAll();
+                if (userId) clearNotificationHistory(userId).catch(() => {});
+              }}
+              hitSlop={8}
+            >
               <ThemedText
                 type="small"
                 themeColor="danger"
@@ -161,7 +196,14 @@ export default function NotificationsScreen() {
         )}
       </View>
     ),
-    [notifications.length, hasUnread, markAllRead, clearAll, themeName],
+    [
+      notifications.length,
+      hasUnread,
+      markAllRead,
+      clearAll,
+      themeName,
+      userId,
+    ],
   );
 
   // ── Empty state ──

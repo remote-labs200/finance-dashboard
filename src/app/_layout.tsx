@@ -21,8 +21,15 @@ import { DatabaseProvider, useSQLiteContext } from "@/db/provider";
 import { useBiometricAuth } from "@/hooks/use-biometric";
 import { useResolvedThemeName } from "@/hooks/use-theme";
 import {
+  addNotificationTapListener,
+  fetchNotificationHistory,
+  getInitialNotificationResponse,
+  refreshTaxDeadlineReminders,
+  registerPushToken,
   requestNotificationPermission,
+  routeForNotification,
   setupNotificationChannels,
+  subscribeToRealtimePushEvents,
 } from "@/lib/notification-service";
 import { performFullSync } from "@/lib/sync-service";
 import { useAuthStore } from "@/stores/use-auth-store";
@@ -70,6 +77,39 @@ function RootLayoutInner() {
       performFullSync(db).catch(console.error);
     }
   }, [netInfo.isConnected, user, db]);
+
+  // Push notification lifecycle: register token, restore history, listen for
+  // live events, and deep-link when a notification is tapped.
+  useEffect(() => {
+    if (!user) return;
+
+    registerPushToken(db, user.id).catch(() => {});
+    fetchNotificationHistory(user.id).catch(() => {});
+
+    // Schedule on-device tax-deadline reminders (respects user prefs).
+    refreshTaxDeadlineReminders(db, user.id).catch(() => {});
+
+    // Cold start: app opened by tapping a notification
+    getInitialNotificationResponse().then((payload) => {
+      if (!payload) return;
+      const route = routeForNotification(payload);
+      if (route) router.push(route as any);
+    });
+
+    // Warm taps while the app is running
+    const unsubscribeTap = addNotificationTapListener((payload) => {
+      const route = routeForNotification(payload);
+      if (route) router.push(route as any);
+    });
+
+    // Live feed updates via Supabase Realtime
+    const unsubscribeRealtime = subscribeToRealtimePushEvents(user.id);
+
+    return () => {
+      unsubscribeTap();
+      unsubscribeRealtime();
+    };
+  }, [db, user, router]);
 
   const unlocked = !bioAvailable || !biometricEnabled || bioAuthed || !user;
 
