@@ -1,17 +1,33 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
+import {
+  NeumorphicButton,
+  NeumorphicCard,
+  NeumorphicInput,
+  NeumorphicPressable,
+} from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
-import { getAllPreferences, setPreference } from "@/db/preferences-repo";
-import { useSQLiteContext } from "@/db/provider";
-import { findTransactionsByUser } from "@/db/transaction-repo";
 import { useTheme } from "@/hooks/use-theme";
+import { useSQLiteContext } from "@/db/provider";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useFocusEffect, useRouter } from "expo-router";
-import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { findTransactionsByUser } from "@/db/transaction-repo";
+import { findAccountsByUser } from "@/db/account-repo";
+import { getAllPreferences, setPreference } from "@/db/preferences-repo";
+import { SymbolView } from "expo-symbols";
 
 // ---------------------------------------------------------------------------
 // Toggle row (reused pattern)
@@ -121,11 +137,11 @@ function timeAgo(iso: string): string {
  * - Tax deduction opportunity (income vs expenses ratio)
  */
 function buildInsights(
-  transactions: Array<{
+  transactions: {
     amountCents: number;
     categoryName: string | null;
     date: string;
-  }>,
+  }[],
   forecastThresholdCents: number,
   currency: string = "USD",
 ): Insight[] {
@@ -255,7 +271,6 @@ export default function AiFinancialInsightsScreen() {
   const insets = useSafeAreaInsets();
   const db = useSQLiteContext();
   const user = useAuthStore((s) => s.user);
-
   const [anomalyAlerts, setAnomalyAlerts] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(true);
   const [taxOpportunities, setTaxOpportunities] = useState(true);
@@ -265,6 +280,9 @@ export default function AiFinancialInsightsScreen() {
   const [forecastThresh, setForecastThresh] = useState(3000);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [baseCurrency, setBaseCurrency] = useState("USD");
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiAnswer, setAiAnswer] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   const threshOptions = [1000, 2000, 3000, 5000, 10000];
 
@@ -373,45 +391,159 @@ export default function AiFinancialInsightsScreen() {
     [savePref],
   );
 
+  const handleAskAI = useCallback(async () => {
+    if (!user || aiLoading) return;
+    const trimmed = aiQuestion.trim();
+    if (!trimmed) return;
+    setAiLoading(true);
+    setAiAnswer("");
+    try {
+      // Build financial context from real transactions and accounts
+      const [txns, accounts] = await Promise.all([
+        findTransactionsByUser(db, user.id, { limit: 100 }),
+        findAccountsByUser(db, user.id),
+      ]);
+
+      const ytdIncome =
+        txns
+          .filter((t) => t.amountCents > 0)
+          .reduce((sum, t) => sum + t.amountCents, 0) / 100;
+      const ytdExpenses =
+        txns
+          .filter((t) => t.amountCents < 0)
+          .reduce((sum, t) => sum + Math.abs(t.amountCents), 0) / 100;
+
+      const recentTransactions = txns.slice(0, 20).map((t) => ({
+        description: t.note ?? t.categoryName ?? "Untitled",
+        amount: t.amountCents / 100,
+        date: t.date,
+        category: t.categoryName ?? "Uncategorized",
+      }));
+
+      const accountsList = accounts.map((a) => ({
+        name: a.name,
+        balance: (a.balanceCents ?? 0) / 100,
+      }));
+
+      if (!supabase) {
+        setAiAnswer(
+          "Supabase is not configured. The AI service requires a connected backend with edge functions deployed.",
+        );
+        setAiLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("ai-insights", {
+        body: {
+          question: trimmed,
+          context: {
+            ytdIncome,
+            ytdExpenses,
+            recentTransactions,
+            accounts: accountsList,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      const answer =
+        (data as { answer?: string })?.answer ?? "No response from AI.";
+      setAiAnswer(answer);
+    } catch (e: unknown) {
+      setAiAnswer(
+        e instanceof Error
+          ? `Failed to get AI insight: ${e.message}`
+          : "Failed to get AI insight.",
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }, [user, db, aiQuestion, aiLoading]);
+
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.safe}>
-        {/* Header */}
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top + Spacing.three,
-              paddingLeft: insets.left + Spacing.four,
-              paddingRight: insets.right + Spacing.four,
-            },
-          ]}
-        >
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <SymbolView
-              name={{
-                ios: "chevron.left",
-                android: "arrow_back",
-                web: "arrow_back",
-              }}
-              size={20}
-              tintColor={theme.primary}
-            />
-          </Pressable>
-          <ThemedText type="title" style={styles.headerTitle}>
-            AI Financial Insights
-          </ThemedText>
-        </View>
-
+      <KeyboardAvoidingView
+        style={styles.safe}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
             {
+              paddingTop: insets.top + Spacing.four,
               paddingLeft: insets.left + Spacing.four,
               paddingRight: insets.right + Spacing.four,
             },
           ]}
+          keyboardShouldPersistTaps="handled"
         >
+          {/* Header */}
+          <View
+            style={[
+              styles.header,
+              {
+                paddingLeft: 0,
+                paddingRight: 0,
+                paddingTop: 0,
+              },
+            ]}
+          >
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <SymbolView
+                name={{
+                  ios: "chevron.left",
+                  android: "arrow_back",
+                  web: "arrow_back",
+                }}
+                size={20}
+                tintColor={theme.primary}
+              />
+            </Pressable>
+            <ThemedText type="title" style={styles.headerTitle}>
+              AI Financial Insights
+            </ThemedText>
+          </View>
+
+          {/* AI Question input */}
+          <View style={styles.aiInputSection}>
+            <NeumorphicCard style={styles.aiInputCard}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Ask AI about your finances
+              </ThemedText>
+              <NeumorphicInput
+                placeholder="e.g. How much did I earn this month?"
+                value={aiQuestion}
+                onChangeText={setAiQuestion}
+                multiline
+                underlineColorAndroid="transparent"
+              />
+              <NeumorphicButton
+                onPress={handleAskAI}
+                disabled={aiLoading || !aiQuestion.trim()}
+                style={styles.aiAskButton}
+              >
+                {aiLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <ThemedText
+                    type="smallBold"
+                    style={{ color: theme.primaryText, fontWeight: "600" }}
+                  >
+                    Ask AI
+                  </ThemedText>
+                )}
+              </NeumorphicButton>
+              {aiAnswer ? (
+                <NeumorphicCard style={styles.aiAnswerCard}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    AI Response
+                  </ThemedText>
+                  <ThemedText type="default">{aiAnswer}</ThemedText>
+                </NeumorphicCard>
+              ) : null}
+            </NeumorphicCard>
+          </View>
           {/* Alert toggles */}
           <View style={styles.section}>
             <ThemedText type="callout" style={styles.sectionTitle}>
@@ -519,7 +651,11 @@ export default function AiFinancialInsightsScreen() {
                           android: "trending_down",
                           web: "trending_down",
                         } as const)
-                      : ({ ios: "leaf", android: "eco", web: "eco" } as const);
+                      : ({
+                          ios: "leaf",
+                          android: "eco",
+                          web: "eco",
+                        } as const);
 
                 return (
                   <NeumorphicCard key={idx} style={styles.insightCard}>
@@ -573,7 +709,7 @@ export default function AiFinancialInsightsScreen() {
 
           <View style={{ height: BottomTabInset + Spacing.six }} />
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </ThemedView>
   );
 }
@@ -659,4 +795,23 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   infoText: { flex: 1, lineHeight: 18 },
+  keyboardAvoid: { flex: 1 },
+  aiInputSection: {
+    paddingTop: Spacing.two,
+  },
+  aiInputCard: {
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  aiAskButton: {
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.two,
+    alignItems: "center",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  aiAnswerCard: {
+    padding: Spacing.three,
+    gap: Spacing.half,
+  },
 });

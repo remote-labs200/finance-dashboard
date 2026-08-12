@@ -1,12 +1,13 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { NeumorphicCard, NeumorphicSurface } from "@/components/ui";
+import { NeumorphicCard, NeumorphicPressable, NeumorphicSurface } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { createPlaidLinkToken } from "@/lib/bank-aggregator";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,11 +23,11 @@ interface BankProvider {
 // Bank Row
 // ---------------------------------------------------------------------------
 
-function BankRow({ provider }: { provider: BankProvider }) {
+function BankRow({ provider, onPress }: { provider: BankProvider, onPress: () => void }) {
   const theme = useTheme();
 
   return (
-    <NeumorphicCard style={styles.bankCard}>
+    <NeumorphicPressable onPress={onPress} style={styles.bankCard}>
       <View style={styles.bankTop}>
         <NeumorphicSurface small style={styles.bankLogo}>
           <ThemedText style={{ fontSize: 28 }}>{provider.logo}</ThemedText>
@@ -36,21 +37,13 @@ function BankRow({ provider }: { provider: BankProvider }) {
             {provider.name}
           </ThemedText>
         </View>
-        <View
-          style={[
-            styles.badge,
-            { backgroundColor: `${theme.warning}18` },
-          ]}
-        >
-          <ThemedText
-            type="small"
-            style={{ color: theme.warning, fontWeight: "600" }}
-          >
-            Coming soon
-          </ThemedText>
-        </View>
+        <SymbolView
+          name={{ ios: "chevron.right", android: "chevron_right", web: "chevron_right" }}
+          size={16}
+          tintColor={theme.textSecondary}
+        />
       </View>
-    </NeumorphicCard>
+    </NeumorphicPressable>
   );
 }
 
@@ -138,7 +131,13 @@ export default function BankConnectionsScreen() {
 
           {/* Provider cards */}
           {BANK_CATALOG.map((provider) => (
-            <BankRow key={provider.id} provider={provider} />
+            <BankRow key={provider.id} provider={provider} onPress={() => {
+              if (provider.id === 'plaid') {
+                createPlaidLinkToken().then(token => console.log('Link token:', token));
+              } else {
+                console.log('Provider not implemented:', provider.id);
+              }
+            }} />
           ))}
 
           {/* Info box */}

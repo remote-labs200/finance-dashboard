@@ -1,12 +1,13 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { NeumorphicCard, NeumorphicSurface } from "@/components/ui";
+import { NeumorphicCard, NeumorphicPressable, NeumorphicSurface } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { createStripePaymentIntent } from "@/lib/payments";
 
 // ---------------------------------------------------------------------------
 // Types

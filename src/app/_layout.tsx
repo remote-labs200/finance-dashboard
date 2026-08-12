@@ -70,6 +70,7 @@ function RootLayoutInner() {
   const [biometricRequireLaunch, setBiometricRequireLaunch] = useState(true);
   const [biometricRequireReturn, setBiometricRequireReturn] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [navReady, setNavReady] = useState(false);
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const resolvedTheme = useResolvedThemeName();
   const netInfo = useNetInfo();
@@ -110,13 +111,18 @@ function RootLayoutInner() {
     getInitialNotificationResponse().then((payload) => {
       if (!payload) return;
       const route = routeForNotification(payload);
-      if (route) router.push(route as any);
+      if (!route) return;
+      // Defer to next tick so the navigator has a chance to mount before
+      // we attempt to dispatch a navigation action.
+      setTimeout(() => router.push(route as any), 0);
     });
 
     // Warm taps while the app is running
     const unsubscribeTap = addNotificationTapListener((payload) => {
       const route = routeForNotification(payload);
-      if (route) router.push(route as any);
+      if (!route) return;
+      // Defer to next tick so navigation happens after the navigator mounts.
+      setTimeout(() => router.push(route as any), 0);
     });
 
     // Live feed updates via Supabase Realtime
@@ -223,22 +229,20 @@ function RootLayoutInner() {
     if (prevUser.current === user) return;
     prevUser.current = user;
 
-    if (user) {
-      // Don't navigate yet -- wait for onboarding check
-    } else {
-      router.replace("/(auth)/welcome");
+    if (!user) {
+      if (navReady) router.replace("/(auth)/welcome");
     }
-  }, [user, router]);
+  }, [user, router, navReady]);
 
   useEffect(() => {
-    if (!user || onboardingDone === null) return;
+    if (!user || onboardingDone === null || !navReady) return;
 
     if (onboardingDone) {
       router.replace("/(tabs)" as any);
     } else {
       router.replace("/(auth)/onboarding");
     }
-  }, [user, onboardingDone, router]);
+  }, [user, onboardingDone, router, navReady]);
 
   // ── Biometric lock screen ─────────────────────────────────────────────────
   if (!unlocked) {
@@ -302,7 +306,7 @@ function RootLayoutInner() {
             backgroundColor={Colors[resolvedTheme].background}
           />
           {user && <OfflineIndicator />}
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={{ headerShown: false }} onLayout={() => setNavReady(true)}>
             {user ? (
               <Stack.Screen name="(tabs)" />
             ) : (

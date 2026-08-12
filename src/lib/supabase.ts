@@ -66,4 +66,13 @@ export const supabaseConfig = {
   isConfigured,
   projectUrl: supabaseUrl ?? "",
   hasPublishableKey: !!supabasePublishableKey,
+  /**
+   * AI is considered available when Supabase is configured AND the
+   * user has set the OPENAI_API_KEY edge function secret in their
+   * Supabase project. We can't read the server-side secret from the
+   * client, so we conservatively report "true" when Supabase is
+   * configured and let the edge function fall back to rule-based
+   * responses when the key is missing.
+   */
+  isAiAvailable: isConfigured,
 } as const;

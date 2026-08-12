@@ -82,9 +82,11 @@ export async function buildXlsx(
     views: [{ state: "frozen", ySplit: 1 }],
   });
   txSheet.columns = [
+    { header: "ID", key: "id", width: 36 },
     { header: "Date", key: "date", width: 14 },
     { header: "Type", key: "type", width: 10 },
-    { header: "Amount", key: "amount", width: 16 },
+    { header: "Amount", key: "amount", width: 16, style: { numFmt: '"$"#,##0.00' } },
+    { header: "Running Balance", key: "balance", width: 16, style: { numFmt: '"$"#,##0.00' } },
     { header: "Currency", key: "currency", width: 10 },
     { header: "Category", key: "category", width: 24 },
     { header: "Account", key: "account", width: 20 },
@@ -97,11 +99,15 @@ export async function buildXlsx(
     fgColor: { argb: "FFE8E8F5" },
   };
 
+  let runningBalance = 0;
   for (const t of transactions) {
+    runningBalance += t.amountCents;
     txSheet.addRow({
+      id: t.id,
       date: t.date.slice(0, 10),
       type: t.amountCents >= 0 ? "Income" : "Expense",
       amount: centsToNumber(t.amountCents),
+      balance: centsToNumber(runningBalance),
       currency: t.currencyCode,
       category: t.categoryName ?? "Uncategorized",
       account: t.accountName ?? "",
@@ -174,7 +180,7 @@ export async function exportLedgerXlsx(
   baseCurrency: string,
 ): Promise<void> {
   const bytes = await buildXlsx(transactions, range, baseCurrency);
-  const fileName = `paysmooth-ledger-${dateStamp()}.xlsx`;
+  const fileName = `PaySmooth_Ledger_${dateStamp()}.xlsx`;
   await downloadBinaryFile(
     fileName,
     bytes,
@@ -212,6 +218,7 @@ function buildPdfHtml(
     .map((t) => {
       const sign = t.amountCents >= 0 ? "+" : "";
       return `<tr>
+        <td>${escapeHtml(t.id)}</td>
         <td>${t.date.slice(0, 10)}</td>
         <td>${t.amountCents >= 0 ? "Income" : "Expense"}</td>
         <td>${escapeHtml(t.categoryName ?? "Uncategorized")}</td>
@@ -238,10 +245,12 @@ function buildPdfHtml(
   <head>
     <meta charset="utf-8" />
     <style>
-      @page { margin: 24px; }
+      @page { margin: 24px; @bottom-right { content: "Page " counter(page) " of " counter(pages); } }
       body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 12px; }
-      h1 { font-size: 20px; margin: 0 0 4px; }
-      .sub { color: #666; margin-bottom: 16px; }
+      .header { border-bottom: 1px solid #ccc; margin-bottom: 16px; padding-bottom: 8px; }
+      .title { font-size: 20px; font-weight: bold; }
+      .meta { color: #666; font-size: 11px; }
+      .footer { position: fixed; bottom: 0; width: 100%; text-align: right; font-size: 10px; }
       table { width: 100%; border-collapse: collapse; margin-top: 12px; }
       th { text-align: left; background: #e8e8f5; padding: 6px 8px; }
       td { padding: 5px 8px; border-bottom: 1px solid #eee; }
@@ -252,8 +261,11 @@ function buildPdfHtml(
     </style>
   </head>
   <body>
-    <h1>PaySmooth Ledger</h1>
-    <div class="sub">${escapeHtml(range.label)} · Exported ${new Date().toLocaleString()}</div>
+    <div class="header">
+      <div class="title">PaySmooth Ledger</div>
+      <div class="meta">${escapeHtml(range.label)} · Exported ${new Date().toLocaleString()}</div>
+    </div>
+    <div class="footer">Page <span class="page"></span></div>
 
     <table class="totals">
       <tr><td>Total Income</td><td style="text-align:right">${formatMoney(totalIncome, baseCurrency)}</td></tr>
@@ -274,7 +286,7 @@ function buildPdfHtml(
     <div class="section">
       <h2>Transactions (${transactions.length})</h2>
       <table>
-        <tr><th>Date</th><th>Type</th><th>Category</th><th>Account</th><th>Note</th><th>Amount</th></tr>
+        <tr><th>ID</th><th>Date</th><th>Type</th><th>Category</th><th>Account</th><th>Note</th><th>Amount</th></tr>
         ${rows}
       </table>
     </div>

@@ -374,6 +374,7 @@
 
 **Database:** `user_preferences` keys: `ai_anomaly_alerts`, `ai_weekly_digest`, `ai_tax_opportunities`, `ai_insight_frequency`, `ai_forecast_threshold`
 **Real insights:** `buildInsights()` computes real anomaly/forecast/opportunity from `findTransactionsByUser()`
+**Interactive AI:** Integrated with Supabase Edge Function `ai-insights` using OpenAI (via `OPENAI_API_KEY` secret) or rule-based fallback. Keyboard interaction supported via `KeyboardAvoidingView`.
 
 ---
 
