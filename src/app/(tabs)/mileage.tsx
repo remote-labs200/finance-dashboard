@@ -19,13 +19,14 @@ import {
   NeumorphicPressable,
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { getPreference } from "@/db/preferences-repo";
 import { useSQLiteContext } from "@/db/provider";
 import { createMileageEntry, deleteMileageEntry, findMileageEntriesByUser } from "@/db/mileage-repo";
 import { MileageEntry } from "@/db/schema";
 import { useThemeColors } from "@/hooks/use-theme";
 import { useAuthStore } from "@/stores/use-auth-store";
 
-const IRS_RATE_PER_MILE = 0.67; // 2024 standard mileage rate
+const DEFAULT_RATE_PER_MILE = 0.655; // IRS 2026 standard mileage rate
 const SUMMARY_CACHE_MS = 1000; // debounce refetch of summary stats
 
 async function loadLocation() {
@@ -46,6 +47,7 @@ export default function MileageScreen() {
   const [entries, setEntries] = useState<MileageEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+  const [ratePerMile, setRatePerMile] = useState(DEFAULT_RATE_PER_MILE);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [trackingStart, setTrackingStart] = useState<any>(null);
 
@@ -63,6 +65,15 @@ export default function MileageScreen() {
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
+
+  // Load the user-configured rate-per-mile from settings.
+  useEffect(() => {
+    if (!user) return;
+    getPreference(db, user.id, "mileage_rate_per_mile").then((val) => {
+      const parsed = parseFloat(val || "");
+      if (!Number.isNaN(parsed) && parsed > 0) setRatePerMile(parsed);
+    });
+  }, [db, user]);
 
   // Refresh on return from sub-screens
   useFocusEffect(() => {
@@ -214,7 +225,7 @@ export default function MileageScreen() {
   );
 
   const totalMiles = entries.reduce((sum, e) => sum + e.miles, 0);
-  const totalDeduction = totalMiles * IRS_RATE_PER_MILE;
+  const totalDeduction = totalMiles * ratePerMile;
 
   return (
     <ThemedView style={styles.container}>
@@ -261,7 +272,7 @@ export default function MileageScreen() {
               </View>
 
               <ThemedText type="small" themeColor="textSecondary">
-                IRS standard rate: ${IRS_RATE_PER_MILE}/mile (2024)
+                Rate: ${ratePerMile.toFixed(3)}/mile (customizable in Settings)
               </ThemedText>
 
               {/* Tracking button */}
@@ -300,7 +311,7 @@ export default function MileageScreen() {
                     {item.miles.toFixed(1)} mi
                   </ThemedText>
                   <ThemedText type="small" style={{ color: colors.success }}>
-                    ${(item.miles * IRS_RATE_PER_MILE).toFixed(2)}
+                    ${(item.miles * ratePerMile).toFixed(2)}
                   </ThemedText>
                 </View>
               </View>

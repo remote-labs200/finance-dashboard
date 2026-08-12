@@ -49,6 +49,11 @@ export type UserPreferenceKey =
   | "fx_auto_update_interval"
   | "fx_rates_cache"
   | "fx_manual_rates"
+  // Mileage tracker settings
+  | "mileage_rate_per_mile"
+  | "mileage_gps_tracking"
+  | "mileage_background_tracking"
+  | "mileage_auto_classify"
   | "smoothing_target_pct"
   | "smoothing_buffer_months"
   | "smoothing_min_pay"
@@ -105,6 +110,10 @@ const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   fx_auto_update_interval: "24",
   fx_rates_cache: "",
   fx_manual_rates: "",
+  mileage_rate_per_mile: "0.655",
+  mileage_gps_tracking: "true",
+  mileage_background_tracking: "false",
+  mileage_auto_classify: "true",
   smoothing_target_pct: "70",
   smoothing_buffer_months: "3",
   smoothing_min_pay: "0",

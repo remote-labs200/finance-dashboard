@@ -221,7 +221,7 @@ export default function TermsPrivacyScreen() {
                 themeColor="textSecondary"
                 style={styles.paragraph}
               >
-                PaySmooth takes data privacy seriously. Here's how we handle
+                PaySmooth takes data privacy seriously. Here&apos;s how we handle
                 your information:
               </ThemedText>
               <ThemedText
@@ -231,7 +231,7 @@ export default function TermsPrivacyScreen() {
               >
                 • Local Storage: Your financial data is stored on-device in a
                 local database. Sign-in credentials and security settings are
-                kept in the device's secure keychain.
+                kept in the device&apos;s secure keychain.
               </ThemedText>
               <ThemedText
                 type="small"

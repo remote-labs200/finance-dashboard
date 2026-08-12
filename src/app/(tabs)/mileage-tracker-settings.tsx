@@ -8,33 +8,38 @@ import {
   NeumorphicSurface,
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { getPreference, setPreference } from "@/db/preferences-repo";
+import { useSQLiteContext } from "@/db/provider";
+import {
+  createMileageVehicle,
+  deleteMileageVehicle,
+  findMileageVehiclesByUser,
+  setPrimaryVehicle,
+  updateMileageVehicle,
+} from "@/db/mileage-vehicle-repo";
+import type { MileageVehicle } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
+import { useAuthStore } from "@/stores/use-auth-store";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ---------------------------------------------------------------------------
 // Vehicle card
 // ---------------------------------------------------------------------------
 
-interface Vehicle {
-  id: string;
-  name: string;
-  make: string;
-  year: string;
-  isPrimary: boolean;
-}
-
 function VehicleCard({
   vehicle,
   onTogglePrimary,
   onRemove,
+  onEdit,
 }: {
-  vehicle: Vehicle;
+  vehicle: MileageVehicle;
   onTogglePrimary: (id: string) => void;
   onRemove: (id: string) => void;
+  onEdit: (vehicle: MileageVehicle) => void;
 }) {
   const theme = useTheme();
   return (
@@ -79,6 +84,13 @@ function VehicleCard({
           </NeumorphicButton>
         )}
         <NeumorphicButton
+          variant="secondary"
+          style={styles.actionBtn}
+          onPress={() => onEdit(vehicle)}
+        >
+          Edit
+        </NeumorphicButton>
+        <NeumorphicButton
           variant="ghost"
           style={[styles.actionBtn, { borderColor: theme.danger }]}
           textStyle={{ color: theme.danger }}
@@ -95,54 +107,189 @@ function VehicleCard({
 // Main screen
 // ---------------------------------------------------------------------------
 
-const INITIAL_VEHICLES: Vehicle[] = [
-  {
-    id: "1",
-    name: "My Car",
-    make: "Toyota Camry",
-    year: "2022",
-    isPrimary: true,
-  },
-  {
-    id: "2",
-    name: "Weekend Van",
-    make: "Honda Odyssey",
-    year: "2020",
-    isPrimary: false,
-  },
-];
-
 export default function MileageTrackerSettingsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const db = useSQLiteContext();
+  const user = useAuthStore((state) => state.user);
 
   const [gpsTracking, setGpsTracking] = useState(true);
   const [backgroundTracking, setBackgroundTracking] = useState(false);
   const [ratePerMile, setRatePerMile] = useState("0.655");
   const [autoClassify, setAutoClassify] = useState(true);
-  const [vehicles, setVehicles] = useState(INITIAL_VEHICLES);
+  const [vehicles, setVehicles] = useState<MileageVehicle[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [editing, setEditing] = useState<MileageVehicle | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editMake, setEditMake] = useState("");
+  const [editYear, setEditYear] = useState("");
 
-  const handleTogglePrimary = useCallback((id: string) => {
-    setVehicles((prev) => prev.map((v) => ({ ...v, isPrimary: v.id === id })));
-  }, []);
+  const loadVehicles = useCallback(async () => {
+    if (!user) return;
+    const list = await findMileageVehiclesByUser(db, user.id);
+    setVehicles(list);
+  }, [db, user]);
 
-  const handleRemoveVehicle = useCallback((id: string) => {
-    setVehicles((prev) => prev.filter((v) => v.id !== id));
-  }, []);
+  const loadPrefs = useCallback(async () => {
+    if (!user) return;
+    const [rate, gps, bg, classify] = await Promise.all([
+      getPreference(db, user.id, "mileage_rate_per_mile"),
+      getPreference(db, user.id, "mileage_gps_tracking"),
+      getPreference(db, user.id, "mileage_background_tracking"),
+      getPreference(db, user.id, "mileage_auto_classify"),
+    ]);
+    setRatePerMile(rate || "0.655");
+    setGpsTracking(gps !== "false");
+    setBackgroundTracking(bg === "true");
+    setAutoClassify(classify !== "false");
+    setLoaded(true);
+  }, [db, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    Promise.all([loadPrefs(), loadVehicles()]).then(() => {
+      if (mounted) setLoaded(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [user, loadPrefs, loadVehicles]);
+
+  const persistRate = useCallback(
+    (val: string) => {
+      const sanitized = val.replace(/[^0-9.]/g, "");
+      setRatePerMile(sanitized);
+      if (user)
+        setPreference(db, user.id, "mileage_rate_per_mile", sanitized || "0.655");
+    },
+    [user, db],
+  );
+
+  const persistGps = useCallback(
+    (val: boolean) => {
+      setGpsTracking(val);
+      if (user)
+        setPreference(db, user.id, "mileage_gps_tracking", val ? "true" : "false");
+    },
+    [user, db],
+  );
+
+  const persistBackground = useCallback(
+    (val: boolean) => {
+      setBackgroundTracking(val);
+      if (user)
+        setPreference(
+          db,
+          user.id,
+          "mileage_background_tracking",
+          val ? "true" : "false",
+        );
+    },
+    [user, db],
+  );
+
+  const persistAutoClassify = useCallback(
+    (val: boolean) => {
+      setAutoClassify(val);
+      if (user)
+        setPreference(
+          db,
+          user.id,
+          "mileage_auto_classify",
+          val ? "true" : "false",
+        );
+    },
+    [user, db],
+  );
+
+  const handleTogglePrimary = useCallback(
+    async (id: string) => {
+      if (!user) return;
+      try {
+        await setPrimaryVehicle(db, user.id, id);
+        await loadVehicles();
+      } catch (e: unknown) {
+        if (e instanceof Error && e.message.includes("closed")) return;
+        console.warn("Failed to set primary vehicle:", e);
+      }
+    },
+    [db, user, loadVehicles],
+  );
+
+  const handleRemoveVehicle = useCallback(
+    (id: string) => {
+      Alert.alert(
+        "Remove Vehicle",
+        "Remove this vehicle profile?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteMileageVehicle(db, id);
+                await loadVehicles();
+              } catch (e: unknown) {
+                if (e instanceof Error && e.message.includes("closed")) return;
+                console.warn("Failed to remove vehicle:", e);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [db, loadVehicles],
+  );
 
   const handleAddVehicle = useCallback(() => {
-    setVehicles((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        name: `Vehicle ${prev.length + 1}`,
-        make: "",
-        year: String(new Date().getFullYear()),
-        isPrimary: prev.length === 0,
-      },
-    ]);
+    setEditing({} as MileageVehicle);
+    setEditName("");
+    setEditMake("");
+    setEditYear(String(new Date().getFullYear()));
   }, []);
+
+  const handleEditVehicle = useCallback((v: MileageVehicle) => {
+    setEditing(v);
+    setEditName(v.name);
+    setEditMake(v.make);
+    setEditYear(v.year);
+  }, []);
+
+  const handleSaveVehicle = useCallback(async () => {
+    if (!user) return;
+    const name = editName.trim();
+    if (!name) {
+      Alert.alert("Name required", "Give your vehicle a name.");
+      return;
+    }
+    try {
+      if (editing && editing.id) {
+        await updateMileageVehicle(db, editing.id, {
+          name,
+          make: editMake.trim(),
+          year: editYear.trim(),
+        });
+      } else {
+        await createMileageVehicle(db, {
+          userId: user.id,
+          name,
+          make: editMake.trim(),
+          year: editYear.trim(),
+          isPrimary: vehicles.length === 0,
+        });
+      }
+      setEditing(null);
+      await loadVehicles();
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes("closed")) return;
+      console.warn("Failed to save vehicle:", e);
+    }
+  }, [db, user, editing, editName, editMake, editYear, vehicles.length, loadVehicles]);
+
+  const openEditor = !!editing;
 
   return (
     <ThemedView style={styles.container}>
@@ -200,7 +347,7 @@ export default function MileageTrackerSettingsScreen() {
                 </View>
                 <Switch
                   value={gpsTracking}
-                  onValueChange={setGpsTracking}
+                  onValueChange={persistGps}
                   trackColor={{ false: theme.inputBorder, true: theme.primary }}
                   thumbColor="#fff"
                 />
@@ -222,7 +369,7 @@ export default function MileageTrackerSettingsScreen() {
                     </View>
                     <Switch
                       value={backgroundTracking}
-                      onValueChange={setBackgroundTracking}
+                      onValueChange={persistBackground}
                       trackColor={{
                         false: theme.inputBorder,
                         true: theme.primary,
@@ -266,7 +413,7 @@ export default function MileageTrackerSettingsScreen() {
                   containerStyle={styles.rateInputWrap}
                   style={styles.rateInput}
                   value={ratePerMile}
-                  onChangeText={setRatePerMile}
+                  onChangeText={persistRate}
                   keyboardType="decimal-pad"
                   placeholder="0.000"
                 />
@@ -275,7 +422,7 @@ export default function MileageTrackerSettingsScreen() {
                 </ThemedText>
               </View>
               <ThemedText type="small" themeColor="textSecondary">
-                IRS 2026 standard rate: $0.655/mile
+                Used to calculate deductions on the mileage screen.
               </ThemedText>
             </NeumorphicCard>
           </View>
@@ -298,7 +445,7 @@ export default function MileageTrackerSettingsScreen() {
                 </View>
                 <Switch
                   value={autoClassify}
-                  onValueChange={setAutoClassify}
+                  onValueChange={persistAutoClassify}
                   trackColor={{ false: theme.inputBorder, true: theme.primary }}
                   thumbColor="#fff"
                 />
@@ -342,10 +489,54 @@ export default function MileageTrackerSettingsScreen() {
                   vehicle={v}
                   onTogglePrimary={handleTogglePrimary}
                   onRemove={handleRemoveVehicle}
+                  onEdit={handleEditVehicle}
                 />
               ))
             )}
           </View>
+
+          {/* Vehicle editor */}
+          {openEditor && (
+            <NeumorphicCard style={styles.editorCard}>
+              <ThemedText type="callout" style={{ fontWeight: "600" }}>
+                {editing && editing.id ? "Edit Vehicle" : "Add Vehicle"}
+              </ThemedText>
+              <NeumorphicInput
+                placeholder="Name (e.g. My Car)"
+                value={editName}
+                onChangeText={setEditName}
+                underlineColorAndroid="transparent"
+              />
+              <NeumorphicInput
+                placeholder="Make (e.g. Toyota Camry)"
+                value={editMake}
+                onChangeText={setEditMake}
+                underlineColorAndroid="transparent"
+              />
+              <NeumorphicInput
+                placeholder="Year (e.g. 2022)"
+                value={editYear}
+                onChangeText={setEditYear}
+                keyboardType="number-pad"
+                underlineColorAndroid="transparent"
+              />
+              <View style={styles.editorActions}>
+                <NeumorphicButton
+                  variant="secondary"
+                  style={styles.editorBtn}
+                  onPress={() => setEditing(null)}
+                >
+                  Cancel
+                </NeumorphicButton>
+                <NeumorphicButton
+                  style={styles.editorBtn}
+                  onPress={handleSaveVehicle}
+                >
+                  Save
+                </NeumorphicButton>
+              </View>
+            </NeumorphicCard>
+          )}
 
           {/* Info */}
           <View style={styles.infoBox}>
@@ -359,8 +550,8 @@ export default function MileageTrackerSettingsScreen() {
               themeColor="textSecondary"
               style={styles.infoText}
             >
-              Mileage data is stored locally and included in CSV/PDF exports.
-              GPS tracking requires location permissions.
+              Vehicle profiles and settings are saved to your account and synced
+              across devices. GPS tracking requires location permissions.
             </ThemedText>
           </View>
 
@@ -471,7 +662,7 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.two,
     borderRadius: Spacing.three,
     minHeight: 40,
   },
@@ -487,6 +678,20 @@ const styles = StyleSheet.create({
   emptyCard: {
     padding: Spacing.three,
     borderRadius: Spacing.three,
+    alignItems: "center",
+  },
+  editorCard: {
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+    gap: Spacing.two,
+  },
+  editorActions: {
+    flexDirection: "row",
+    gap: Spacing.two,
+  },
+  editorBtn: {
+    flex: 1,
+    paddingVertical: Spacing.two,
     alignItems: "center",
   },
   infoBox: {

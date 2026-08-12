@@ -11,7 +11,6 @@ import {
   performFullSync,
 } from "@/lib/sync-service";
 import { supabaseConfig } from "@/lib/supabase";
-import { useAuthStore } from "@/stores/use-auth-store";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useEffect, useState } from "react";
@@ -20,7 +19,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CloudSyncScreen() {
   const db = useSQLiteContext();
-  const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();

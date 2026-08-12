@@ -249,6 +249,7 @@ const SYNC_TABLES = [
   "recurring_transactions",
   "user_preferences",
   "mileage_entries",
+  "mileage_vehicles",
   "app_settings",
   "integrations_settings",
 ];

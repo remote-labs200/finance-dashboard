@@ -30,6 +30,12 @@
 | **H-5** Feature-tuning screens buried | ✅ Done | Gear button on each dashboard feature card jump-cuts to its tuning screen. |
 | **H-6** Transactions list capped at 100 | ✅ Done | Infinite-scroll pagination (100/page) in `explore.tsx`; type filter moved server-side. |
 | **TS** Build blockers | ✅ Done | Fixed `recurring-transaction-repo.ts` unused import, `mfa-service.ts` name/codes typing; `tsc --noEmit` is clean. |
+| **S-1** Smoothing tuning drives Home | ✅ Done | Home reads `smoothing_target_pct`/`buffer_months`/`min_pay` into `computeSmoothing` + min-pay floor. |
+| **S-2** Tax calibration drives engine | ✅ Done | Home + Reports read `calibration_*` (state rate, prior-year tax, quarter, safe harbor) into `estimateAnnualTax`. |
+| **S-3** Accounting year drives Reports | ✅ Done | `src/lib/accounting-year.ts`; Reports YTD/monthly/label use `fy_type`/`fy_start_*`. Tax stays calendar (IRS). |
+| **S-4** Real FX rates | ✅ Done | `exchange-rates.tsx` fetches live open.er-api.com rates, real manual overrides, auto-update + interval, persisted cache. `secondary-currencies` shows live rates. |
+| **S-5** Mileage settings real | ✅ Done | New `mileage_vehicles` table + repo + Supabase migration; settings persist GPS/rate/classify prefs; mileage screen uses configured rate. |
+| **S-6** Honesty fixes | ✅ Done | Cloud-sync stub form removed (read-only config), terms acceptance persisted, app-version real build info, theme claim fixed, FAQ/Privacy claims corrected. |
 
 ---
 
@@ -53,7 +59,9 @@ The engineering is genuinely strong:
 3. ~~**Table-stakes features missing**~~ — receipts, P&L, real XLSX/PDF exports, recurring transactions, pagination shipped.
 4. ~~**UI ahead of engine**~~ — mock integrations gated ("Coming soon"); notification toggles verified wired end-to-end.
 
-Remaining open work: per-category budgets (BLUEPRINT §5.1) and the invoicing product decision (§6.1).
+5. ~~**Write-only settings**~~ — smoothing, tax-calibration, accounting-year, FX, and mileage settings now actually drive Home/Reports/conversion (S-1…S-6).
+
+Remaining open work: per-category budgets (BLUEPRINT §5.1), the invoicing product decision (§6.1), and third-party-dependent screens (bank aggregator + payment gateway — awaiting provider choice).
 
 ---
 
@@ -113,6 +121,28 @@ No tab is missing or excessive at the top level.
 
 ---
 
+## 4b. Settings screen — mock → real (2026-08-12)
+
+Migrated the settings hub and its sub-screens from mock/write-only data to real functionality. Every settings change now propagates to the screens that consume it.
+
+| # | Screen | Work | Status |
+|---|---|---|---|
+| S-1 | Safe Monthly Pay | Home reads `smoothing_target_pct`, `smoothing_buffer_months`, `smoothing_min_pay` into `computeSmoothing` (tax set-aside + buffer months + min-pay floor). | ✅ |
+| S-2 | Tax Calibration | Home + Reports read `calibration_state_rate` (as decimal), `calibration_prior_year_tax` (gated by `calibration_safe_harbor`), `calibration_current_quarter` into `estimateAnnualTax`. | ✅ |
+| S-3 | Accounting Year | New `src/lib/accounting-year.ts` computes fiscal windows; `getYearToDateSummary`/`getMonthlyTotals` accept custom ranges; Reports header/YTD/monthly use `fy_type`/`fy_start_*`. Tax estimate stays calendar (IRS). | ✅ |
+| S-4 | Exchange Rates + Secondary Currencies | Real live rates from **open.er-api.com** (free, no key). New `fx-service.ts`: persisted cache (`fx_rates_cache`), manual overrides (`fx_manual_rates`), auto-update + interval honored. Screen: refresh, timestamp, inline override editor. Secondary currencies show live rates. | ✅ |
+| S-5 | Mileage Tracker Settings | New `mileage_vehicles` table (local + Supabase migration `20260812020000`), `mileage-vehicle-repo.ts`, registered in `SYNC_TABLES`. GPS/background/auto-classify/rate persist (`mileage_*` prefs). Mileage screen reads `mileage_rate_per_mile` for deductions (was hardcoded $0.67/2024). | ✅ |
+| S-6 | Cloud Sync | Removed fake "Save and Apply" credentials form; shows read-only configured project URL from `.env` (new `supabaseConfig` export). | ✅ |
+| S-6b | Terms & Privacy | Acceptance now persists (`terms_accepted_at`); removed hardcoded "28 Jul 2026"; removed `example.com` placeholder links; corrected false "encrypted SQLite" claim. | ✅ |
+| S-6c | App Version | Real values via `expo-constants` + React Native version + Supabase status (was stale hardcoded SDK 56/RN 0.76; project is SDK 57/RN 0.86). | ✅ |
+| S-6d | App Theme / Help FAQs | Removed false "synced across devices" claim (theme is device-local); corrected FAQ answers referencing the deleted Data Encryption Key screen and overconfident restore claim. | ✅ |
+
+**Remaining settings screens needing a third-party decision** (deferred, per plan):
+- Bank Connections → aggregator choice (Plaid / Teller / GoCardless / Yodlee) not yet made.
+- Invoicing Integrations → payment gateway choice (Stripe / PayPal / Wise) not yet made.
+
+---
+
 ## 5. Categories / subcategories
 
 - Keep flat for v1 — do NOT add subcategories yet.
@@ -146,6 +176,8 @@ No tab is missing or excessive at the top level.
 | **Week 3 — Professional outputs** | P1-2, P1-3, H-4 | ✅ **Complete** |
 | **Week 4 — Moat strengthening** | P1-5, budgets, H-1, H-2, H-3, P1-8, H-6 | ✅ P1-5, H-1, H-2, H-3, P1-8, H-6 done; **budgets still open** |
 | **Week 5 — Polish** | H-5 tune-buttons, dashboard navbar, transaction analytics, TS build blockers | ✅ **Complete** |
+| **Week 6 — Settings real-data** | S-1 smoothing, S-2 tax calibration, S-3 accounting year, S-4 FX, S-5 mileage, S-6 honesty fixes | ✅ **Complete** (non-third-party) |
+| **Week 7 — Third-party screens** | Bank connections (aggregator), invoicing integrations (gateway), OCR/insights delivery | ⬜ Blocked on provider choices |
 
 ---
 

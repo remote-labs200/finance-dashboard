@@ -134,6 +134,17 @@ export interface MileageEntry {
   updatedAt: string;
 }
 
+export interface MileageVehicle {
+  id: string;
+  userId: string;
+  name: string;
+  make: string;
+  year: string;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaxSettings {
   id: string; // UUID (one per user, id = userId)
   userId: string;
@@ -271,6 +282,18 @@ export const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mileage_entries_user_id ON mileage_entries(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_mileage_entries_date ON mileage_entries(date)`,
+  // Mileage vehicle profiles (cloud-first: mirrors public.mileage_vehicles)
+  `CREATE TABLE IF NOT EXISTS mileage_vehicles (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    make TEXT NOT NULL DEFAULT '',
+    year TEXT NOT NULL DEFAULT '',
+    is_primary INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_mileage_vehicles_user_id ON mileage_vehicles(user_id)`,
   // App settings (key-value, user-scoped) — mirrors public.app_settings
   // Stores per-device/app settings like bank connection state.
   `CREATE TABLE IF NOT EXISTS app_settings (
