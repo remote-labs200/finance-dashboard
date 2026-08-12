@@ -271,7 +271,8 @@ export async function getMonthlySummary(
 export async function getYearToDateSummary(
   db: SQLite.SQLiteDatabase,
   userId: string,
-  year: number
+  year: number,
+  opts?: { startDate?: string; endDate?: string }
 ): Promise<{ totalIncome: number; totalExpenses: number; net: number }> {
   const result = await db.getFirstAsync<{ totalIncome: number; totalExpenses: number }>(
     `SELECT
@@ -280,8 +281,8 @@ export async function getYearToDateSummary(
      FROM transactions
      WHERE user_id = ? AND date >= ? AND date <= ?`,
     userId,
-    `${year}-01-01`,
-    `${year}-12-31`
+    opts?.startDate ?? `${year}-01-01`,
+    opts?.endDate ?? `${year}-12-31`
   );
 
   return {
@@ -294,7 +295,8 @@ export async function getYearToDateSummary(
 export async function getMonthlyTotals(
   db: SQLite.SQLiteDatabase,
   userId: string,
-  year: number
+  year: number,
+  opts?: { startDate?: string; endDate?: string }
 ): Promise<Array<{ month: number; income: number; expenses: number; net: number }>> {
   const results = await db.getAllAsync<{ month: number; income: number; expenses: number }>(
     `SELECT
@@ -306,8 +308,8 @@ export async function getMonthlyTotals(
      GROUP BY month
      ORDER BY month ASC`,
     userId,
-    `${year}-01-01`,
-    `${year}-12-31`
+    opts?.startDate ?? `${year}-01-01`,
+    opts?.endDate ?? `${year}-12-31`
   );
 
   // Fill in missing months

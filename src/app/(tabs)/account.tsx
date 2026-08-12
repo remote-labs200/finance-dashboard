@@ -589,12 +589,6 @@ export default function AccountScreen() {
           onPress: () => navigateTo("/(tabs)/bank-connections"),
         },
         {
-          icon: { ios: "icloud", android: "cloud_sync", web: "cloud_sync" },
-          label: "Multi-Device Sync",
-          description: "Expo cloud synchronization engine configurations.",
-          onPress: () => navigateTo("/(tabs)/cloud-sync"),
-        },
-        {
           icon: {
             ios: "doc.text.fill",
             android: "description",

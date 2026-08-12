@@ -56,3 +56,14 @@ export const supabase: SupabaseClient | null = isConfigured
       },
     })
   : null;
+
+/**
+ * Read-only view of the Supabase configuration baked into this build.
+ * Credentials come from .env at build time and cannot be changed at
+ * runtime — screens show this instead of a fake "save credentials" form.
+ */
+export const supabaseConfig = {
+  isConfigured,
+  projectUrl: supabaseUrl ?? "",
+  hasPublishableKey: !!supabasePublishableKey,
+} as const;

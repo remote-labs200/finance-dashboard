@@ -251,8 +251,8 @@ export default function AppThemeScreen() {
             themeColor="textTertiary"
             style={styles.info}
           >
-            Changes apply immediately. Theme preference is synced across devices
-            when signed in.
+            Changes apply immediately across the whole app. Theme is saved on
+            this device only.
           </ThemedText>
 
           <View style={{ height: Spacing.six }} />

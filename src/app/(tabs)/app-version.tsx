@@ -6,10 +6,20 @@ import {
   NeumorphicSurface,
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import Constants from "expo-constants";
 import { useTheme } from "@/hooks/use-theme";
+import { supabaseConfig } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Linking,
+  NativeModules,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AppVersionScreen() {
@@ -17,14 +27,24 @@ export default function AppVersionScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
+  const reactNativeVersion =
+    (NativeModules.PlatformConstants as { reactNativeVersion?: { major: number; minor: number; patch: number } } | undefined)
+      ?.reactNativeVersion;
+  const rnLabel = reactNativeVersion
+    ? `${reactNativeVersion.major}.${reactNativeVersion.minor}.${reactNativeVersion.patch}`
+    : "—";
+
   const buildInfo = [
-    { label: "App Version", value: "1.0.0 (Build 1)" },
-    { label: "Expo SDK", value: "56.0.0" },
-    { label: "React Native", value: "0.76.9" },
+    {
+      label: "App Version",
+      value: `${Constants.expoConfig?.version ?? "1.0.0"} (Build ${Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? "1"})`,
+    },
+    { label: "Platform", value: `${Platform.OS} · ${Platform.OS === "android" ? "Android" : "iOS"}` },
+    { label: "Expo SDK", value: Constants.expoConfig?.sdkVersion ?? "—" },
+    { label: "React Native", value: rnLabel },
     { label: "Supabase Client", value: "2.111.0" },
+    { label: "Cloud Sync", value: supabaseConfig.isConfigured ? "Configured" : "Not configured" },
     { label: "Bundle Type", value: __DEV__ ? "Development" : "Production" },
-    { label: "Build Date", value: "29 Jul 2026" },
-    { label: "Last Updated", value: "28 Jul 2026" },
   ];
 
   return (
@@ -92,7 +112,7 @@ export default function AppVersionScreen() {
               PaySmooth
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Version 1.0.0 (Build 1)
+              Version {Constants.expoConfig?.version ?? "1.0.0"}
             </ThemedText>
           </NeumorphicCard>
 

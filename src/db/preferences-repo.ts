@@ -5,15 +5,14 @@ import { cloudUpsert } from "./cloud-writer";
 import { isNetworkError } from "./network-utils";
 
 export type UserPreferenceKey =
-  | "filing_status"
-  | "state"
   | "tax_year"
-  | "default_currency"
   | "notifications_enabled"
   // Push notifications
   | "push_token"
   // Marketing consent (gates the Sender.net sync)
   | "marketing_consent"
+  // Legal acceptance (timestamp of when the user accepted Terms & Privacy)
+  | "terms_accepted_at"
   // Per-type notification preferences
   | "notif_tax_deadline"
   | "notif_payment_reminder"
@@ -48,6 +47,8 @@ export type UserPreferenceKey =
   | "secondary_currencies"
   | "fx_auto_update"
   | "fx_auto_update_interval"
+  | "fx_rates_cache"
+  | "fx_manual_rates"
   | "smoothing_target_pct"
   | "smoothing_buffer_months"
   | "smoothing_min_pay"
@@ -69,13 +70,11 @@ export type UserPreferenceKey =
   | "ocr_compression_level";
 
 const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
-  filing_status: "single",
-  state: "",
   tax_year: String(new Date().getFullYear()),
-  default_currency: "USD",
   notifications_enabled: "true",
   push_token: "",
   marketing_consent: "false",
+  terms_accepted_at: "",
   notif_tax_deadline: "true",
   notif_payment_reminder: "true",
   notif_weekly_summary: "true",
@@ -104,6 +103,8 @@ const PREFERENCE_DEFAULTS: Record<UserPreferenceKey, string> = {
   secondary_currencies: "",
   fx_auto_update: "true",
   fx_auto_update_interval: "24",
+  fx_rates_cache: "",
+  fx_manual_rates: "",
   smoothing_target_pct: "70",
   smoothing_buffer_months: "3",
   smoothing_min_pay: "0",

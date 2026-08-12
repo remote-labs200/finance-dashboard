@@ -1,10 +1,6 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import {
-  NeumorphicButton,
-  NeumorphicCard,
-  NeumorphicInput,
-} from "@/components/ui";
+import { NeumorphicButton, NeumorphicCard } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useSQLiteContext } from "@/db/provider";
 import { useTheme } from "@/hooks/use-theme";
@@ -14,6 +10,7 @@ import {
   getPendingSyncEntries,
   performFullSync,
 } from "@/lib/sync-service";
+import { supabaseConfig } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
@@ -33,11 +30,6 @@ export default function CloudSyncScreen() {
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
-
-  // Edit Supabase URL fields
-  const [showConfig, setShowConfig] = useState(false);
-  const [supabaseUrl, setSupabaseUrl] = useState("");
-  const [supabaseKey, setSupabaseKey] = useState("");
 
   const refreshStatus = useCallback(
     async (signal?: { aborted: boolean }) => {
@@ -95,15 +87,24 @@ export default function CloudSyncScreen() {
   }, [db, refreshStatus]);
 
   const handleSaveConfig = useCallback(() => {
-    // This would save to .env or a config store in production.
-    // For now, show a message explaining how to configure.
-    Alert.alert(
-      "Supabase Configuration",
-      "To configure Supabase, create a .env file in the project root with:\n\n" +
-        "EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co\n" +
-        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key\n\n" +
-        "The app will automatically detect and use these credentials.",
-    );
+    // Credentials are baked in from .env at build time and cannot be
+    // changed from inside the app. Show a plain explanation instead of a
+    // fake "save" flow.
+    if (supabaseConfig.isConfigured) {
+      Alert.alert(
+        "Supabase Configuration",
+        "This build is connected to:\n\n" +
+          supabaseConfig.projectUrl +
+          "\n\nCloud credentials are set at build time in the .env file and cannot be changed from the app.",
+        [{ text: "OK" }],
+      );
+    } else {
+      Alert.alert(
+        "Supabase Configuration",
+        "This build is not connected to Supabase. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY to the .env file and rebuild.",
+        [{ text: "OK" }],
+      );
+    }
   }, []);
 
   const formatDate = (iso: string | null) => {
@@ -288,85 +289,34 @@ export default function CloudSyncScreen() {
               themeColor="textSecondary"
               style={styles.sectionSubtitle}
             >
-              Cloud sync uses Supabase for authentication and data backup.
-              Configure your Supabase project credentials to enable cloud
-              features.
+              Cloud sync uses Supabase for authentication and data backup. The
+              project connection is set at build time via the .env file and
+              cannot be changed from inside the app.
             </ThemedText>
 
             <NeumorphicCard style={styles.card}>
-              {!showConfig ? (
-                <Pressable
-                  onPress={() => setShowConfig(true)}
-                  style={styles.configRow}
-                >
-                  <View style={styles.configLeft}>
-                    <ThemedText type="default">Supabase Project</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {isConnected ? "Configured" : "Not configured"}
-                    </ThemedText>
-                  </View>
-                  <SymbolView
-                    name={{
-                      ios: "chevron.right",
-                      android: "chevron_right",
-                      web: "chevron_right",
-                    }}
-                    size={16}
-                    tintColor={theme.placeholder}
-                  />
-                </Pressable>
-              ) : (
-                <View style={styles.configForm}>
-                  <ThemedText
-                    type="callout"
-                    style={{ fontWeight: "600", marginBottom: Spacing.two }}
-                  >
-                    Supabase Credentials
-                  </ThemedText>
-
+              <Pressable
+                onPress={handleSaveConfig}
+                style={styles.configRow}
+              >
+                <View style={styles.configLeft}>
+                  <ThemedText type="default">Supabase Project</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Project URL
-                  </ThemedText>
-                  <NeumorphicInput
-                    placeholder="https://your-project.supabase.co"
-                    value={supabaseUrl}
-                    onChangeText={setSupabaseUrl}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                  />
-
-                  <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={{ marginTop: Spacing.two }}
-                  >
-                    Anon Publishable Key
-                  </ThemedText>
-                  <NeumorphicInput
-                    placeholder="your-anon-key"
-                    value={supabaseKey}
-                    onChangeText={setSupabaseKey}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-
-                  <NeumorphicButton
-                    onPress={handleSaveConfig}
-                    style={styles.saveConfigBtn}
-                  >
-                    Save and Apply
-                  </NeumorphicButton>
-
-                  <ThemedText
-                    type="small"
-                    themeColor="textSecondary"
-                    style={{ textAlign: "center", marginTop: Spacing.one }}
-                  >
-                    Credentials are stored in your .env file.
+                    {supabaseConfig.isConfigured
+                      ? supabaseConfig.projectUrl
+                      : "Not configured — add EXPO_PUBLIC_SUPABASE_URL to .env"}
                   </ThemedText>
                 </View>
-              )}
+                <SymbolView
+                  name={{
+                    ios: "info.circle",
+                    android: "info",
+                    web: "info",
+                  }}
+                  size={16}
+                  tintColor={theme.placeholder}
+                />
+              </Pressable>
             </NeumorphicCard>
           </View>
 
@@ -482,21 +432,6 @@ const styles = StyleSheet.create({
   configLeft: {
     flex: 1,
     gap: 2,
-  },
-  configForm: {
-    gap: Spacing.one,
-  },
-  configInput: {
-    borderWidth: 1,
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    fontSize: 14,
-  },
-  saveConfigBtn: {
-    marginTop: Spacing.two,
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
-    alignItems: "center",
   },
   infoBox: {
     flexDirection: "row",

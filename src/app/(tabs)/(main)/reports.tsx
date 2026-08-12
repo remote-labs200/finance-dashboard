@@ -23,6 +23,10 @@ import { getTaxYearPaidCents } from "@/db/tax-payment-repo";
 import { downloadTextFile } from "@/lib/export-utils";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency, getMonthName } from "@/lib/format";
+import {
+  accountingYearWindow,
+  parseAccountingYearPrefs,
+} from "@/lib/accounting-year";
 import { estimateAnnualTax, toFilingStatus } from "@/lib/tax-engine";
 import { useAuthStore } from "@/stores/use-auth-store";
 
@@ -59,6 +63,7 @@ export default function ReportsScreen() {
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [taxPaidCents, setTaxPaidCents] = useState(0);
   const [deductibleExpenses, setDeductibleExpenses] = useState(0);
+  const [yearLabel, setYearLabel] = useState("");
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -67,9 +72,25 @@ export default function ReportsScreen() {
     if (!user) return;
 
     try {
+      const [fyType, fyStartMonth, fyStartDay] = await Promise.all([
+        getPreference(db, user.id, "fy_type"),
+        getPreference(db, user.id, "fy_start_month"),
+        getPreference(db, user.id, "fy_start_day"),
+      ]);
+      const yearWindow = accountingYearWindow(
+        parseAccountingYearPrefs(fyType, fyStartMonth, fyStartDay),
+        now,
+      );
+
       const [summary, monthly, txns, paidTax] = await Promise.all([
-        getYearToDateSummary(db, user.id, currentYear),
-        getMonthlyTotals(db, user.id, currentYear),
+        getYearToDateSummary(db, user.id, currentYear, {
+          startDate: yearWindow.start,
+          endDate: yearWindow.end,
+        }),
+        getMonthlyTotals(db, user.id, currentYear, {
+          startDate: yearWindow.start,
+          endDate: yearWindow.end,
+        }),
         findTransactionsByUser(db, user.id, { limit: 10000 }),
         getTaxYearPaidCents(db, user.id, currentYear),
       ]);
@@ -78,6 +99,7 @@ export default function ReportsScreen() {
       setMonthlyTotals(monthly);
       setTransactionCount(txns.length);
       setTaxPaidCents(paidTax);
+      setYearLabel(yearWindow.label);
 
       // Compute tax estimate. Deductions use only expenses in deductible
       // categories (uncategorized defaults to deductible).
@@ -94,18 +116,43 @@ export default function ReportsScreen() {
         .reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
       setDeductibleExpenses(ytdDeductionsCents);
 
-      const [filingStatus, baseCurrency] = await Promise.all([
+      const [
+        filingStatus,
+        baseCurrency,
+        calibrationStateRate,
+        calibrationPriorYearTax,
+        calibrationCurrentQuarter,
+        calibrationSafeHarbor,
+      ] = await Promise.all([
         getPreference(db, user.id, "tax_filing_status"),
         getPreference(db, user.id, "base_currency"),
+        getPreference(db, user.id, "calibration_state_rate"),
+        getPreference(db, user.id, "calibration_prior_year_tax"),
+        getPreference(db, user.id, "calibration_current_quarter"),
+        getPreference(db, user.id, "calibration_safe_harbor"),
       ]);
       setBaseCurrency(baseCurrency);
+
+      const stateRatePct = Math.max(0, parseFloat(calibrationStateRate || "0"));
+      const priorYearTaxCents = Math.max(
+        0,
+        parseInt(calibrationPriorYearTax || "0", 10),
+      );
+      const calQuarter = Math.min(
+        4,
+        Math.max(1, parseInt(calibrationCurrentQuarter || "1", 10)),
+      ) as 1 | 2 | 3 | 4;
+      const safeHarborOn = calibrationSafeHarbor !== "false";
 
       const taxResult = estimateAnnualTax({
         ytdIncomeCents: ytdIncome,
         ytdDeductionsCents,
         filingStatus: toFilingStatus(filingStatus),
         taxYear: currentYear,
-        currentQuarter: Math.ceil((now.getMonth() + 1) / 3) as 1 | 2 | 3 | 4,
+        currentQuarter: calQuarter,
+        stateRate: stateRatePct / 100,
+        priorYearTaxCents:
+          safeHarborOn && priorYearTaxCents > 0 ? priorYearTaxCents : undefined,
       });
       setTaxEstimate(taxResult);
     } catch (e: unknown) {
@@ -283,7 +330,7 @@ export default function ReportsScreen() {
         >
           <ThemedText type="title">Reports</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {currentYear} Tax Year
+            {yearLabel ? `${yearLabel} Accounting Year` : `${currentYear} Tax Year`}
           </ThemedText>
 
           {/* Year Summary */}

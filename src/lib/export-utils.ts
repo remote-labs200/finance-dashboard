@@ -38,11 +38,61 @@ export async function downloadTextFile(
   }
 }
 
-function downloadOnWeb(fileName: string, content: string, mimeType: string) {
+/**
+ * Download a binary file (XLSX, …). Accepts a `Uint8Array` of bytes so
+ * generated workbooks can be written verbatim on native and web.
+ */
+export async function downloadBinaryFile(
+  fileName: string,
+  bytes: Uint8Array,
+  mimeType: string,
+  dialogTitle: string,
+): Promise<void> {
+  if (Platform.OS === "web") {
+    downloadOnWeb(fileName, bytes, mimeType);
+    return;
+  }
+
+  const file = new ExpoFile(Paths.document, fileName);
+  await file.write(bytes);
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(file.uri, { mimeType, dialogTitle });
+  } else {
+    Alert.alert("Exported", `File saved to: ${fileName}`);
+  }
+}
+
+/**
+ * Share an existing file (e.g. a PDF produced by expo-print). The file is
+ * already on disk — we only hand it off to the share sheet.
+ */
+export async function shareExistingFile(
+  uri: string,
+  mimeType: string,
+  dialogTitle: string,
+): Promise<void> {
+  if (Platform.OS === "web") return;
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri, { mimeType, dialogTitle });
+  } else {
+    Alert.alert("Exported", "File saved to the app's documents directory.");
+  }
+}
+
+function downloadOnWeb(
+  fileName: string,
+  content: string | Uint8Array,
+  mimeType: string,
+) {
   const doc = (globalThis as { document?: Document }).document;
   if (!doc) return;
 
-  const blob = new Blob([content], { type: mimeType });
+  const blob =
+    typeof content === "string"
+      ? new Blob([content], { type: mimeType })
+      : new Blob([content as BlobPart], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = doc.createElement("a");
   anchor.href = url;

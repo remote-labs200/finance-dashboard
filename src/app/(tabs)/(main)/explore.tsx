@@ -36,27 +36,48 @@ export default function TransactionsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<"all" | "income" | "expense">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadTransactions = useCallback(async () => {
-    if (!user) return;
-    try {
-      const txns = await findTransactionsByUser(db, user.id, { limit: 100 });
-      setTransactions(txns);
-    } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes("closed")) return;
-      console.warn("loadTransactions error:", e);
-    }
-  }, [db, user]);
+  const PAGE_SIZE = 100;
+
+  const loadTransactions = useCallback(
+    async (nextPage: number, reset: boolean) => {
+      if (!user) return;
+      try {
+        const txns = await findTransactionsByUser(db, user.id, {
+          limit: PAGE_SIZE,
+          offset: nextPage * PAGE_SIZE,
+          type: filter === "all" ? undefined : filter,
+        });
+        setTransactions((prev) => (reset ? txns : [...prev, ...txns]));
+        setPage(nextPage);
+        setHasMore(txns.length === PAGE_SIZE);
+      } catch (e: unknown) {
+        if (e instanceof Error && e.message.includes("closed")) return;
+        console.warn("loadTransactions error:", e);
+      }
+    },
+    [db, user, filter],
+  );
 
   useEffect(() => {
-    loadTransactions();
+    loadTransactions(0, true);
   }, [loadTransactions]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadTransactions();
+    await loadTransactions(0, true);
     setRefreshing(false);
   }, [loadTransactions]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    await loadTransactions(page + 1, false);
+    setLoadingMore(false);
+  }, [hasMore, loadingMore, loadTransactions, page]);
 
   const handleDelete = useCallback(
     (txn: Transaction) => {
@@ -70,7 +91,7 @@ export default function TransactionsScreen() {
             style: "destructive",
             onPress: async () => {
               await deleteTransaction(db, txn.id);
-              await loadTransactions();
+              await loadTransactions(0, true);
             },
           },
         ],
@@ -229,8 +250,21 @@ export default function TransactionsScreen() {
               paddingRight: insets.right + Spacing.four,
             },
           ]}
+          onEndReached={() => {
+            if (!searchQuery.trim()) loadMore();
+          }}
+          onEndReachedThreshold={0.3}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListFooterComponent={
+            transactions.length > 0 && hasMore ? (
+              <View style={styles.footer}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {loadingMore ? "Loading more…" : "Scroll for more"}
+                </ThemedText>
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -321,6 +355,10 @@ const styles = StyleSheet.create({
   },
   empty: {
     paddingVertical: Spacing.six,
+    alignItems: "center",
+  },
+  footer: {
+    paddingVertical: Spacing.three,
     alignItems: "center",
   },
   fab: {

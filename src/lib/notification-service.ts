@@ -673,7 +673,7 @@ export function routeForNotification(payload: {
 }): string | null {
   if (payload.actionRoute) return payload.actionRoute;
   const byType: Record<string, string> = {
-    tax_deadline: '/(tabs)/tax-config',
+    tax_deadline: '/(tabs)/tax-payments',
     payment_reminder: '/(tabs)/(main)/clients',
     payment_received: '/(tabs)/(main)/clients',
     weekly_summary: '/(tabs)/reports',

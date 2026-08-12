@@ -80,6 +80,37 @@ function QuickStat({ icon, tintColor, title, value, sub }: QuickStatProps) {
   );
 }
 
+/**
+ * Small gear button that jumps to a feature's tuning screen.
+ * Surface feature-specific settings next to the feature itself instead of
+ * burying them four levels deep in the Account settings hub.
+ */
+function TuneButton({ route }: { route: string }) {
+  const colors = useThemeColors();
+  const router = useRouter();
+  return (
+    <Pressable
+      onPress={() => router.push(route as any)}
+      hitSlop={10}
+      style={({ pressed }) => [
+        styles.tuneButton,
+        { backgroundColor: colors.backgroundElement },
+        pressed && { opacity: 0.6 },
+      ]}
+    >
+      <SymbolView
+        name={{
+          ios: "slider.horizontal.3",
+          android: "tune",
+          web: "tune",
+        }}
+        size={16}
+        tintColor={colors.textSecondary}
+      />
+    </Pressable>
+  );
+}
+
 export default function DashboardScreen() {
   const db = useSQLiteContext();
   const colors = useThemeColors();
@@ -129,9 +160,26 @@ export default function DashboardScreen() {
       setAccounts(accs);
       setRecentTxns(txns);
 
-      const [filingStatus, baseCurrency] = await Promise.all([
+      const [
+        filingStatus,
+        baseCurrency,
+        smoothingTarget,
+        smoothingBuffer,
+        smoothingMinPay,
+        calibrationStateRate,
+        calibrationPriorYearTax,
+        calibrationCurrentQuarter,
+        calibrationSafeHarbor,
+      ] = await Promise.all([
         getPreference(db, user.id, "tax_filing_status"),
         getPreference(db, user.id, "base_currency"),
+        getPreference(db, user.id, "smoothing_target_pct"),
+        getPreference(db, user.id, "smoothing_buffer_months"),
+        getPreference(db, user.id, "smoothing_min_pay"),
+        getPreference(db, user.id, "calibration_state_rate"),
+        getPreference(db, user.id, "calibration_prior_year_tax"),
+        getPreference(db, user.id, "calibration_current_quarter"),
+        getPreference(db, user.id, "calibration_safe_harbor"),
       ]);
       setBaseCurrency(baseCurrency);
 
@@ -149,17 +197,41 @@ export default function DashboardScreen() {
         )
         .reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
 
+      const stateRatePct = Math.max(0, parseFloat(calibrationStateRate || "0"));
+      const priorYearTaxCents = Math.max(
+        0,
+        parseInt(calibrationPriorYearTax || "0", 10),
+      );
+      const calQuarter = Math.min(
+        4,
+        Math.max(1, parseInt(calibrationCurrentQuarter || "1", 10)),
+      ) as 1 | 2 | 3 | 4;
+      const safeHarborOn = calibrationSafeHarbor !== "false";
+
       const taxResult = estimateAnnualTax({
         ytdIncomeCents: ytdIncome,
         ytdDeductionsCents,
         filingStatus: toFilingStatus(filingStatus),
         taxYear: year,
-        currentQuarter: Math.ceil(month / 3) as 1 | 2 | 3 | 4,
+        currentQuarter: calQuarter,
+        stateRate: stateRatePct / 100,
+        priorYearTaxCents:
+          safeHarborOn && priorYearTaxCents > 0 ? priorYearTaxCents : undefined,
       });
       setTaxEstimate(taxResult);
       setNextDeadline(daysUntilNextDeadline());
 
-      // Compute income smoothing
+      // Compute income smoothing — driven by the Safe Monthly Pay tuning.
+      const targetPct = Math.min(
+        100,
+        Math.max(0, parseInt(smoothingTarget || "70", 10)),
+      );
+      const bufferMonths = Math.min(
+        12,
+        Math.max(0, parseInt(smoothingBuffer || "3", 10)),
+      );
+      const minPayCents = Math.max(0, parseInt(smoothingMinPay || "0", 10));
+
       const monthlyData = aggregateMonthlyIncomes(
         allTxns.map((t) => ({ amountCents: t.amountCents, date: t.date })),
         `${year - 1}-01`,
@@ -168,7 +240,13 @@ export default function DashboardScreen() {
       if (monthlyData.length >= 2) {
         const smoothingResult = computeSmoothing({
           monthlyIncomes: monthlyData,
+          taxSetAsideRate: (100 - targetPct) / 100,
+          desiredBufferMonths: bufferMonths,
         });
+        // Apply the user's minimum monthly floor on top of the computed value.
+        if (minPayCents > 0 && smoothingResult.safePayCents < minPayCents) {
+          smoothingResult.safePayCents = minPayCents;
+        }
         setSmoothing(smoothingResult);
         const lastActual = [...smoothingResult.projections]
           .filter((p) => !p.isProjected)
@@ -361,6 +439,9 @@ export default function DashboardScreen() {
                   <ThemedText type="callout" style={{ fontWeight: "600" }}>
                     Safe Pay This Month
                   </ThemedText>
+                  <View style={styles.cardHeaderRight}>
+                    <TuneButton route="/(tabs)/safe-monthly-pay" />
+                  </View>
                 </View>
                 <ThemedText type="headline" style={{ color: colors.success }}>
                   {formatCurrency(smoothing?.safePayCents ?? 0, baseCurrency)}
@@ -645,30 +726,35 @@ export default function DashboardScreen() {
               {taxEstimate && (
                 <NeumorphicCard style={styles.card}>
                   <View style={styles.cardTaxHeader}>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      Quarterly Tax Estimate
-                    </ThemedText>
-                    {nextDeadline && (
-                      <NeumorphicSurface
-                        small
-                        style={[
-                          styles.deadlineBadge,
-                          { backgroundColor: colors.warning + "26" },
-                        ]}
-                      >
-                        <ThemedText
-                          type="small"
-                          style={{
-                            color:
-                              nextDeadline.daysRemaining <= 30
-                                ? colors.danger
-                                : colors.warning,
-                          }}
+                    <View style={styles.cardInsightsRow}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Quarterly Tax Estimate
+                      </ThemedText>
+                    </View>
+                    <View style={styles.cardHeaderRight}>
+                      {nextDeadline && (
+                        <NeumorphicSurface
+                          small
+                          style={[
+                            styles.deadlineBadge,
+                            { backgroundColor: colors.warning + "26" },
+                          ]}
                         >
-                          {nextDeadline.daysRemaining}d left
-                        </ThemedText>
-                      </NeumorphicSurface>
-                    )}
+                          <ThemedText
+                            type="small"
+                            style={{
+                              color:
+                                nextDeadline.daysRemaining <= 30
+                                  ? colors.danger
+                                  : colors.warning,
+                            }}
+                          >
+                            {nextDeadline.daysRemaining}d left
+                          </ThemedText>
+                        </NeumorphicSurface>
+                      )}
+                      <TuneButton route="/(tabs)/tax-calibration" />
+                    </View>
                   </View>
                   <ThemedText type="headline" style={{ color: colors.warning }}>
                     {formatCurrency(taxEstimate.quarterlyPaymentCents, baseCurrency)}
@@ -691,9 +777,14 @@ export default function DashboardScreen() {
               {/* Income Smoothing Card */}
               {smoothing && smoothing.safePayCents > 0 && (
                 <NeumorphicCard style={styles.card}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Safe Monthly Pay
-                  </ThemedText>
+                  <View style={styles.cardInsightsRow}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Safe Monthly Pay
+                    </ThemedText>
+                    <View style={styles.cardHeaderRight}>
+                      <TuneButton route="/(tabs)/safe-monthly-pay" />
+                    </View>
+                  </View>
                   <ThemedText type="headline" style={{ color: colors.success }}>
                     {formatCurrency(smoothing.safePayCents, baseCurrency)}
                   </ThemedText>
@@ -753,6 +844,9 @@ export default function DashboardScreen() {
                   <ThemedText type="callout" style={{ fontWeight: "600" }}>
                     AI Insights
                   </ThemedText>
+                  <View style={styles.cardHeaderRight}>
+                    <TuneButton route="/(tabs)/ai-financial-insights" />
+                  </View>
                 </View>
                 <ThemedText type="small" themeColor="textSecondary">
                   Ask questions about your finances in natural language
@@ -801,6 +895,9 @@ export default function DashboardScreen() {
                   <ThemedText type="callout" style={{ fontWeight: "600" }}>
                     Mileage Tracker
                   </ThemedText>
+                  <View style={styles.cardHeaderRight}>
+                    <TuneButton route="/(tabs)/mileage-tracker-settings" />
+                  </View>
                 </View>
                 <ThemedText type="small" themeColor="textSecondary">
                   Log business miles for tax deductions
@@ -825,6 +922,9 @@ export default function DashboardScreen() {
                   <ThemedText type="callout" style={{ fontWeight: "600" }}>
                     Cash Flow Forecast
                   </ThemedText>
+                  <View style={styles.cardHeaderRight}>
+                    <TuneButton route="/(tabs)/cash-flow-forecasting" />
+                  </View>
                 </View>
                 <ThemedText type="small" themeColor="textSecondary">
                   AI-powered 3-month income projection
@@ -1031,6 +1131,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.one,
+  },
+  cardHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
+    marginLeft: "auto",
+  },
+  tuneButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   quickActionsSection: {
     gap: Spacing.two,

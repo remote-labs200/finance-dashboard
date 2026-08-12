@@ -38,7 +38,7 @@ const FAQS: FaqSection[] = [
   {
     question: "Is my data encrypted?",
     answer:
-      "Yes. All local data is encrypted at rest using AES-256. Data in transit to Supabase uses TLS 1.3. You can manage your encryption key in Settings > Privacy & Security > Data Encryption Key.",
+      "Your sign-in credentials and security settings are stored in your device's secure keychain. Financial data stored on-device is kept in a local database; data synced to Supabase is encrypted in transit (TLS) and at rest (AES-256).",
   },
   {
     question: "Can I export my data for my accountant?",
@@ -53,7 +53,7 @@ const FAQS: FaqSection[] = [
   {
     question: "What happens if I clear app data?",
     answer:
-      "Your data is backed up to Supabase cloud storage. Sign back in and tap Sync to restore all your accounts, categories, and transactions. Make sure cloud sync is configured and has been run at least once.",
+      "Clearing local data removes transactions, accounts, and categories from this device. If cloud sync is configured and has been run, the data still exists in Supabase and will be pulled back on your next sync.",
   },
 ];
 

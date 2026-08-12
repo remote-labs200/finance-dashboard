@@ -1,19 +1,80 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { NeumorphicCard, NeumorphicPressable } from "@/components/ui";
+import {
+  NeumorphicButton,
+  NeumorphicCard,
+  NeumorphicPressable,
+} from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import { getPreference, setPreference } from "@/db/preferences-repo";
+import { useSQLiteContext } from "@/db/provider";
 import { useTheme } from "@/hooks/use-theme";
+import { useAuthStore } from "@/stores/use-auth-store";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TermsPrivacyScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [acceptedDate] = useState<string | null>("28 Jul 2026");
+  const db = useSQLiteContext();
+  const user = useAuthStore((state) => state.user);
+  const [acceptedDate, setAcceptedDate] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getPreference(db, user.id, "terms_accepted_at").then((val) => {
+      if (!mounted) return;
+      if (val) {
+        const d = new Date(val);
+        setAcceptedDate(d.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }));
+      }
+      setLoaded(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user]);
+
+  const handleAccept = useCallback(async () => {
+    if (!user) {
+      Alert.alert("Sign in required", "Sign in to record your acceptance.");
+      return;
+    }
+    const now = new Date().toISOString();
+    try {
+      await setPreference(db, user.id, "terms_accepted_at", now);
+      setAcceptedDate(
+        new Date(now).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      );
+      Alert.alert("Thank you", "Your acceptance has been recorded.");
+    } catch (e: unknown) {
+      Alert.alert(
+        "Save failed",
+        e instanceof Error ? e.message : "Could not record acceptance.",
+      );
+    }
+  }, [db, user]);
+
+  const handleContact = useCallback(() => {
+    Alert.alert(
+      "Contact",
+      "Questions about these terms? Email support@paysmooth.app.",
+    );
+  }, []);
 
   return (
     <ThemedView style={styles.container}>
@@ -168,9 +229,9 @@ export default function TermsPrivacyScreen() {
                 themeColor="textSecondary"
                 style={styles.bullet}
               >
-                • Local Storage: Your financial data is stored on-device in an
-                encrypted SQLite database. The encryption key stays on your
-                device.
+                • Local Storage: Your financial data is stored on-device in a
+                local database. Sign-in credentials and security settings are
+                kept in the device's secure keychain.
               </ThemedText>
               <ThemedText
                 type="small"
@@ -208,71 +269,35 @@ export default function TermsPrivacyScreen() {
             </NeumorphicCard>
           </View>
 
-          {/* Links */}
+          {/* Accept terms */}
+          {loaded && !acceptedDate && (
+            <NeumorphicButton onPress={handleAccept} style={styles.acceptBtn}>
+              <ThemedText
+                type="default"
+                style={{ color: theme.primaryText, fontWeight: "600" }}
+              >
+                Accept Terms & Privacy
+              </ThemedText>
+            </NeumorphicButton>
+          )}
+
+          {/* Contact */}
           <NeumorphicCard style={styles.linksCard}>
             <NeumorphicPressable
-              onPress={() => Linking.openURL("https://example.com/privacy")}
+              onPress={handleContact}
               style={styles.linkRow}
             >
               <ThemedText
                 type="default"
                 style={{ color: theme.primary, fontWeight: "500" }}
               >
-                Full Privacy Policy
+                Questions? Contact support
               </ThemedText>
               <SymbolView
                 name={{
-                  ios: "arrow.up.forward",
-                  android: "open_in_new",
-                  web: "open_in_new",
-                }}
-                size={16}
-                tintColor={theme.primary}
-              />
-            </NeumorphicPressable>
-            <View
-              style={[styles.divider, { backgroundColor: theme.divider }]}
-            />
-            <NeumorphicPressable
-              onPress={() => Linking.openURL("https://example.com/terms")}
-              style={styles.linkRow}
-            >
-              <ThemedText
-                type="default"
-                style={{ color: theme.primary, fontWeight: "500" }}
-              >
-                Full Terms of Service
-              </ThemedText>
-              <SymbolView
-                name={{
-                  ios: "arrow.up.forward",
-                  android: "open_in_new",
-                  web: "open_in_new",
-                }}
-                size={16}
-                tintColor={theme.primary}
-              />
-            </NeumorphicPressable>
-            <View
-              style={[styles.divider, { backgroundColor: theme.divider }]}
-            />
-            <NeumorphicPressable
-              onPress={() =>
-                Linking.openURL("https://example.com/cookie-policy")
-              }
-              style={styles.linkRow}
-            >
-              <ThemedText
-                type="default"
-                style={{ color: theme.primary, fontWeight: "500" }}
-              >
-                Cookie Policy
-              </ThemedText>
-              <SymbolView
-                name={{
-                  ios: "arrow.up.forward",
-                  android: "open_in_new",
-                  web: "open_in_new",
+                  ios: "envelope",
+                  android: "mail",
+                  web: "mail",
                 }}
                 size={16}
                 tintColor={theme.primary}
@@ -336,5 +361,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.one,
     borderRadius: 12,
   },
-  divider: { height: StyleSheet.hairlineWidth },
+  acceptBtn: {
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
+    alignItems: "center",
+  },
 });

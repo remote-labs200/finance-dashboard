@@ -6,18 +6,26 @@ import {
   NeumorphicPressable,
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useSQLiteContext } from "@/db/provider";
 import { getPreference } from "@/db/preferences-repo";
 import type { Transaction } from "@/db/schema";
 import { findTransactionsByUser } from "@/db/transaction-repo";
 import { sendTransactionalEmail } from "@/lib/email-service";
+import {
+  exportLedgerPdf,
+  exportLedgerXlsx,
+} from "@/lib/export-builders";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -139,7 +147,10 @@ function lastQuarterRange(): { start: string; end: string } {
   };
 }
 
-function scopeRange(scope: ExportScope): { start: string; end: string } | null {
+function scopeRange(
+  scope: ExportScope,
+  custom?: { start: string; end: string },
+): { start: string; end: string } | null {
   if (scope === "all") return null;
   if (scope === "this-year") {
     const year = new Date().getFullYear();
@@ -149,14 +160,14 @@ function scopeRange(scope: ExportScope): { start: string; end: string } | null {
     };
   }
   if (scope === "last-quarter") return lastQuarterRange();
-  return null; // custom — not implemented without date picker
+  return custom ?? null; // custom — explicit start/end from the date pickers
 }
 
 // ---------------------------------------------------------------------------
 // Selectable Chip
 // ---------------------------------------------------------------------------
 
-function Chip<T extends string>({
+function Chip({
   label,
   selected,
   onSelect,
@@ -254,6 +265,40 @@ export default function ExportLedgerScreen() {
   const [loaded, setLoaded] = useState(false);
   const [baseCurrency, setBaseCurrency] = useState("USD");
 
+  // Custom range pickers
+  const [customStart, setCustomStart] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [customEnd, setCustomEnd] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [pickerTarget, setPickerTarget] = useState<"start" | "end" | null>(null);
+
+  const customRange = useMemo(
+    () =>
+      selectedScope === "custom"
+        ? { start: customStart, end: customEnd }
+        : undefined,
+    [selectedScope, customStart, customEnd],
+  );
+
+  const handleDateChange = useCallback(
+    (event: DateTimePickerEvent, date?: Date) => {
+      setPickerTarget(null);
+      if (event.type === "dismissed" || !date) return;
+      const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      if (pickerTarget === "start") {
+        setCustomStart(iso);
+      } else {
+        setCustomEnd(iso);
+      }
+    },
+    [pickerTarget],
+  );
+
   useEffect(() => {
     if (!user) return;
     let mounted = true;
@@ -272,7 +317,7 @@ export default function ExportLedgerScreen() {
       let active = true;
       (async () => {
         try {
-          const range = scopeRange(selectedScope);
+          const range = scopeRange(selectedScope, customRange);
           const txs = await findTransactionsByUser(db, user.id, {
             startDate: range?.start,
             endDate: range?.end,
@@ -289,17 +334,17 @@ export default function ExportLedgerScreen() {
       return () => {
         active = false;
       };
-    }, [db, user, selectedScope]),
+    }, [db, user, selectedScope, customRange]),
   );
 
   const buildExportContent = useCallback((): string => {
-    const range = scopeRange(selectedScope);
+    const range = scopeRange(selectedScope, customRange);
     const dateRangeLabel =
       selectedScope === "all"
         ? "All Time"
-        : selectedScope === "custom"
-          ? "Custom Range"
-          : `${range?.start} – ${range?.end}`;
+        : range
+          ? `${fmtDate(range.start)} – ${fmtDate(range.end)}`
+          : "Custom Range";
 
     if (selectedFormat === "csv") {
       const header = "Date,Amount,Note,Category,Account,Currency";
@@ -316,7 +361,7 @@ export default function ExportLedgerScreen() {
       return [header, ...rows].join("\n");
     }
 
-    // XLSX / PDF fallback: human-readable text summary
+    // Text summary (used for the email copy; XLSX/PDF use real file builders)
     const totalIncome = transactions
       .filter((t) => t.amountCents > 0)
       .reduce((s, t) => s + t.amountCents, 0);
@@ -349,24 +394,47 @@ export default function ExportLedgerScreen() {
       );
     }
     return lines.join("\n");
-  }, [selectedFormat, selectedScope, transactions, baseCurrency]);
+  }, [selectedFormat, selectedScope, transactions, baseCurrency, customRange]);
 
   const handleExport = useCallback(async () => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const content = buildExportContent();
+      const range = scopeRange(selectedScope, customRange);
       const dateRangeLabel =
         selectedScope === "all"
           ? "All Time"
-          : selectedScope === "custom"
-            ? "Custom Range"
-            : `${scopeRange(selectedScope)?.start} – ${scopeRange(selectedScope)?.end}`;
+          : range
+            ? `${fmtDate(range.start)} – ${fmtDate(range.end)}`
+            : "Custom Range";
 
-      await Share.share({
-        message: content,
-        title: `PaySmooth Ledger Export (${dateRangeLabel})`,
-      });
+      if (selectedFormat === "xlsx") {
+        await exportLedgerXlsx(
+          transactions,
+          {
+            label: dateRangeLabel,
+            start: range?.start ?? null,
+            end: range?.end ?? null,
+          },
+          baseCurrency,
+        );
+      } else if (selectedFormat === "pdf") {
+        await exportLedgerPdf(
+          transactions,
+          {
+            label: dateRangeLabel,
+            start: range?.start ?? null,
+            end: range?.end ?? null,
+          },
+          baseCurrency,
+        );
+      } else {
+        const content = buildExportContent();
+        await Share.share({
+          message: content,
+          title: `PaySmooth Ledger Export (${dateRangeLabel})`,
+        });
+      }
 
       Alert.alert(
         "Export Complete",
@@ -380,7 +448,7 @@ export default function ExportLedgerScreen() {
     } finally {
       setIsExporting(false);
     }
-  }, [isExporting, buildExportContent, selectedFormat, selectedScope]);
+  }, [isExporting, buildExportContent, selectedFormat, selectedScope, customRange, transactions, baseCurrency]);
 
   const [emailing, setEmailing] = useState(false);
 
@@ -524,6 +592,66 @@ export default function ExportLedgerScreen() {
             >
               {SCOPES.find((s) => s.id === selectedScope)?.description}
             </ThemedText>
+
+            {/* Custom range pickers */}
+            {selectedScope === "custom" && (
+              <View style={styles.customRange}>
+                <NeumorphicPressable
+                  onPress={() => setPickerTarget("start")}
+                  style={styles.datePickerBtn}
+                >
+                  <View style={styles.datePickerRow}>
+                    <SymbolView
+                      name={{
+                        ios: "calendar",
+                        android: "calendar_today",
+                        web: "calendar_today",
+                      }}
+                      size={18}
+                      tintColor={theme.primary}
+                    />
+                    <ThemedText type="default" style={{ fontWeight: "500" }}>
+                      Start: {fmtDate(customStart)}
+                    </ThemedText>
+                  </View>
+                </NeumorphicPressable>
+                <NeumorphicPressable
+                  onPress={() => setPickerTarget("end")}
+                  style={styles.datePickerBtn}
+                >
+                  <View style={styles.datePickerRow}>
+                    <SymbolView
+                      name={{
+                        ios: "calendar",
+                        android: "calendar_today",
+                        web: "calendar_today",
+                      }}
+                      size={18}
+                      tintColor={theme.primary}
+                    />
+                    <ThemedText type="default" style={{ fontWeight: "500" }}>
+                      End: {fmtDate(customEnd)}
+                    </ThemedText>
+                  </View>
+                </NeumorphicPressable>
+              </View>
+            )}
+
+            {pickerTarget && (
+              <DateTimePicker
+                value={
+                  new Date(
+                    pickerTarget === "start"
+                      ? `${customStart}T00:00:00`
+                      : `${customEnd}T00:00:00`,
+                  )
+                }
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                maximumDate={new Date()}
+                onChange={handleDateChange}
+              />
+            )}
           </View>
 
           {/* Data summary */}
@@ -632,9 +760,9 @@ export default function ExportLedgerScreen() {
               themeColor="textSecondary"
               style={styles.infoText}
             >
-              Exported data never leaves your device unless you choose to share
-              it. PDF exports include a category-summary page suitable for tax
-              preparation.
+              CSV exports a plain text file. XLSX produces a real Excel
+              workbook with a Transactions and Summary sheet. PDF produces a
+              print-ready report grouped by category with totals.
             </ThemedText>
           </View>
 
@@ -706,6 +834,22 @@ const styles = StyleSheet.create({
   },
   chipHint: {
     lineHeight: 18,
+  },
+  customRange: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  datePickerBtn: {
+    flex: 1,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+  },
+  datePickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
   },
   summaryCard: {
     padding: Spacing.three,

@@ -1,8 +1,5 @@
 import * as SQLite from "expo-sqlite";
-import {
-  RecurringTransaction,
-  RecurringTransactionCreate,
-} from "./schema";
+import { RecurringTransaction } from "./schema";
 import { generateId } from "./user-repo";
 import { cloudUpsert, cloudDelete } from "./cloud-writer";
 import { createTransaction } from "./transaction-repo";

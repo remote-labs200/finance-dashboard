@@ -11,6 +11,7 @@ import { NeumorphicButton, NeumorphicPressable } from "@/components/ui";
 import { Spacing } from "@/constants/theme";
 import { getPreference, setPreference } from "@/db/preferences-repo";
 import { useTheme } from "@/hooks/use-theme";
+import { getAllRates } from "@/lib/fx-service";
 import { useAuthStore } from "@/stores/use-auth-store";
 
 // ---------------------------------------------------------------------------
@@ -59,20 +60,46 @@ export default function SecondaryCurrenciesScreen() {
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
+  const [rates, setRates] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!user) return;
+    let mounted = true;
     Promise.all([
       getPreference(db, user.id, "base_currency"),
       getPreference(db, user.id, "secondary_currencies"),
     ]).then(([base, raw]) => {
+      if (!mounted) return;
       setBaseCurrency(base || "USD");
       if (raw) {
         setSelectedCodes(new Set(raw.split(",").filter(Boolean)));
       }
       setLoaded(true);
     });
+    return () => {
+      mounted = false;
+    };
   }, [user, db]);
+
+  // Load real exchange rates for the base currency.
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    getAllRates(db, user.id, baseCurrency)
+      .then((all) => {
+        if (!mounted) return;
+        const map: Record<string, number> = {};
+        for (const r of all) map[r.to] = r.rate;
+        setRates(map);
+      })
+      .catch((e: unknown) => {
+        if (e instanceof Error && e.message.includes("closed")) return;
+        console.warn("Failed to load exchange rates:", e);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [db, user, baseCurrency]);
 
   const persist = useCallback(
     (updated: Set<string>) => {
@@ -197,6 +224,12 @@ export default function SecondaryCurrenciesScreen() {
                 <ThemedText type="default" style={{ fontWeight: "500" }}>
                   {c.code} — {c.name}
                 </ThemedText>
+                {rates[c.code] != null && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    1 {baseCurrency} = {rates[c.code].toFixed(4)} {c.code} → 1{" "}
+                    {c.code} = {(1 / rates[c.code]).toFixed(4)} {baseCurrency}
+                  </ThemedText>
+                )}
               </View>
               <SymbolView
                 name={

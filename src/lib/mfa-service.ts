@@ -46,7 +46,7 @@ export async function listVerifiedTotpFactors(): Promise<MfaTotpFactor[]> {
 
   return (data.totp ?? [])
     .filter((f) => f.status === "verified")
-    .map((f) => ({ id: f.id, friendlyName: f.friendly_name }));
+    .map((f) => ({ id: f.id, friendlyName: f.friendly_name ?? null }));
 }
 
 /** Enroll a new TOTP factor. The factor is unverified until `verifyFactor` succeeds. */
@@ -60,12 +60,18 @@ export async function enrollTotp(): Promise<EnrollTotpResult> {
   });
   if (error) throw new Error(error.message);
 
+  // The runtime returns one-time recovery codes, but the installed auth-js
+  // type does not declare them. Read them defensively so a shape change
+  // cannot break enrollment.
+  const recoveryCodes =
+    (data as { recovery_codes?: string[] }).recovery_codes ?? [];
+
   return {
     factorId: data.id,
     qrCodeSvg: data.totp.qr_code,
     secret: data.totp.secret,
     uri: data.totp.uri,
-    recoveryCodes: data.recovery_codes ?? [],
+    recoveryCodes,
   };
 }
 
