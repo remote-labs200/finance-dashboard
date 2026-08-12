@@ -545,6 +545,28 @@ export default function AccountScreen() {
             "Localized income brackets and self-employment tax rate manual adjusters.",
           onPress: () => navigateTo("/(tabs)/tax-calibration"),
         },
+        {
+          icon: {
+            ios: "dollarsign.circle",
+            android: "payments",
+            web: "payments",
+          },
+          label: "Tax Payments",
+          description:
+            "Track estimated-tax payments and see what you still owe.",
+          onPress: () => navigateTo("/(tabs)/tax-payments"),
+        },
+        {
+          icon: {
+            ios: "repeat.circle",
+            android: "repeat",
+            web: "repeat",
+          },
+          label: "Recurring Transactions",
+          description:
+            "Set up automatic income and expense templates.",
+          onPress: () => navigateTo("/(tabs)/recurring-transactions"),
+        },
       ],
     },
     {
@@ -660,34 +682,8 @@ export default function AccountScreen() {
           },
           label: "Two-Factor Auth",
           description:
-            "Secure secondary token authentication configuration panels.",
+            "Authenticator app codes required at sign-in.",
           onPress: () => navigateTo("/(tabs)/two-factor-auth"),
-        },
-        {
-          icon: { ios: "key.fill", android: "key", web: "key" },
-          label: "Data Encryption Key",
-          description: "Self-custody or cloud-managed data security keys.",
-          onPress: () => navigateTo("/(tabs)/data-encryption-key"),
-        },
-        {
-          icon: {
-            ios: "clock.badge.checkmark",
-            android: "history",
-            web: "history",
-          },
-          label: "Security Logs",
-          description: "Recent security activity and authentication history.",
-          onPress: () => navigateTo("/(tabs)/security-logs"),
-        },
-        {
-          icon: {
-            ios: "laptopcomputer.and.iphone",
-            android: "devices_other",
-            web: "devices_other",
-          },
-          label: "Connected Devices",
-          description: "IP addresses, locations, device type, and model info.",
-          onPress: () => navigateTo("/(tabs)/connected-devices"),
         },
       ],
     },

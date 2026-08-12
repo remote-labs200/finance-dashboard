@@ -29,7 +29,11 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
   const signIn = useAuthStore((state) => state.signIn);
+  const verifyMfaCode = useAuthStore((state) => state.verifyMfaCode);
+  const cancelMfa = useAuthStore((state) => state.cancelMfa);
+  const mfa = useAuthStore((state) => state.mfa);
   const db = useSQLiteContext();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -38,11 +42,34 @@ export default function SignInScreen() {
     setLoading(true);
     try {
       await signIn(db, email, password);
+      // When the account uses 2FA, the store's `mfa` state flips the UI
+      // to the verification code step below.
     } catch (error: any) {
       Alert.alert("Sign In Failed", error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVerifyMfa = async () => {
+    if (mfaCode.replace(/\s/g, "").length < 6) {
+      Alert.alert("Invalid Code", "Enter the 6-digit code from your authenticator app.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await verifyMfaCode(db, mfaCode);
+    } catch (error: any) {
+      Alert.alert("Verification Failed", error.message);
+    } finally {
+      setLoading(false);
+      setMfaCode("");
+    }
+  };
+
+  const handleCancelMfa = () => {
+    cancelMfa();
+    setMfaCode("");
   };
 
   const handleForgotPassword = () => {
@@ -190,40 +217,82 @@ export default function SignInScreen() {
                   />
 
                   {/* Password input */}
-                  <PasswordInput
-                    placeholder="Password"
-                    value={password}
-                    onChangeText={setPassword}
-                    autoCapitalize="none"
-                  />
+                  {!mfa && (
+                    <PasswordInput
+                      placeholder="Password"
+                      value={password}
+                      onChangeText={setPassword}
+                      autoCapitalize="none"
+                    />
+                  )}
+
+                  {/* 2FA verification code step */}
+                  {mfa && (
+                    <>
+                      <ThemedText
+                        type="small"
+                        themeColor="textSecondary"
+                        style={styles.mfaHint}
+                      >
+                        Enter the 6-digit code from your authenticator app to
+                        finish signing in.
+                      </ThemedText>
+                      <NeumorphicInput
+                        placeholder="000 000"
+                        value={mfaCode}
+                        onChangeText={setMfaCode}
+                        keyboardType="number-pad"
+                        maxLength={7}
+                        autoFocus
+                        underlineColorAndroid="transparent"
+                      />
+                    </>
+                  )}
 
                   {/* Sign In button */}
                   <NeumorphicButton
-                    onPress={handleSignIn}
+                    onPress={mfa ? handleVerifyMfa : handleSignIn}
                     disabled={loading}
                     style={styles.button}
                   >
                     <ThemedText type="smallBold" style={{ color: "#ffffff" }}>
-                      {loading ? "Signing In..." : "Sign In"}
+                      {loading
+                        ? "Signing In..."
+                        : mfa
+                          ? "Verify & Sign In"
+                          : "Sign In"}
                     </ThemedText>
                   </NeumorphicButton>
 
-                  {/* Forgot Password */}
-                  <Pressable
-                    onPress={handleForgotPassword}
-                    style={styles.forgotPassword}
-                  >
-                    <ThemedText type="link" style={styles.forgotText}>
-                      Forgot Password?
-                    </ThemedText>
-                  </Pressable>
+                  {mfa ? (
+                    <Pressable
+                      onPress={handleCancelMfa}
+                      style={styles.forgotPassword}
+                    >
+                      <ThemedText type="link" style={styles.forgotText}>
+                        Cancel and go back
+                      </ThemedText>
+                    </Pressable>
+                  ) : (
+                    <>
+                      {/* Forgot Password */}
+                      <Pressable
+                        onPress={handleForgotPassword}
+                        style={styles.forgotPassword}
+                      >
+                        <ThemedText type="link" style={styles.forgotText}>
+                          Forgot Password?
+                        </ThemedText>
+                      </Pressable>
 
-                  {/* Ghost link */}
-                  <Link href="/(auth)/sign-up" asChild>
-                    <ThemedText type="link" style={styles.linkButton}>
-                      Don&apos;t have an account? Sign Up
-                    </ThemedText>
-                  </Link>
+                      {/* Ghost link */}
+                      <Link href="/(auth)/sign-up" asChild>
+                        <ThemedText type="link" style={styles.linkButton}>
+                          Don&apos;t have an account? Sign Up
+                        </ThemedText>
+                      </Link>
+                    </>
+                  )}
 
                   {/* Footer */}
                   <ThemedText
@@ -310,6 +379,10 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 14,
+  },
+  mfaHint: {
+    lineHeight: 18,
+    textAlign: "center",
   },
   footer: {
     textAlign: "center",

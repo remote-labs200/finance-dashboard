@@ -25,6 +25,7 @@ import { findAccountsByUser } from "@/db/account-repo";
 import { findCategoriesByUser } from "@/db/category-repo";
 import { useSQLiteContext } from "@/db/provider";
 import { getPreference } from "@/db/preferences-repo";
+import { createReceipt } from "@/db/receipt-repo";
 import { createTransaction } from "@/db/transaction-repo";
 import { useThemeColors } from "@/hooks/use-theme";
 import { aiExtractReceipt, isAIEnabled } from "@/lib/ai-service";
@@ -47,6 +48,7 @@ export default function ScanScreen() {
   const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [baseCurrency, setBaseCurrency] = useState("USD");
@@ -139,6 +141,7 @@ export default function ScanScreen() {
         return;
       }
 
+      setImageUrl(imageUrl);
       const extraction = await aiExtractReceipt(imageUrl);
       if (extraction) {
         setReceiptData(extraction);
@@ -174,7 +177,7 @@ export default function ScanScreen() {
 
     const expenseCategory = categories.find((c) => !c.isIncome);
 
-    await createTransaction(db, {
+    const txn = await createTransaction(db, {
       userId: user.id,
       amountCents: -Math.abs(amountCents), // Expenses are negative
       currencyCode: receiptData.currency ?? baseCurrency,
@@ -184,13 +187,31 @@ export default function ScanScreen() {
       date: receiptData.date ?? new Date().toISOString().split("T")[0],
     });
 
+    // Attach the receipt image + OCR data to the transaction.
+    if (txn) {
+      await createReceipt(db, {
+        userId: user.id,
+        transactionId: txn.id,
+        localPath: imageUri ?? undefined,
+        remoteUrl: imageUrl ?? undefined,
+        merchant: receiptData.merchant ?? undefined,
+        amountCents: amountCents,
+        date: receiptData.date ?? undefined,
+        ocrRaw: JSON.stringify({
+          tax: receiptData.tax,
+          items: receiptData.items,
+        }),
+      });
+    }
+
     Alert.alert("Saved", "Transaction created from receipt.", [
       { text: "OK", onPress: () => router.back() },
     ]);
-  }, [db, user, receiptData, router, baseCurrency]);
+  }, [db, user, receiptData, imageUri, imageUrl, router, baseCurrency]);
 
   const reset = useCallback(() => {
     setImageUri(null);
+    setImageUrl(null);
     setReceiptData(null);
   }, []);
 

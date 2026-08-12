@@ -12,6 +12,7 @@ import {
 import { setPreference } from "@/db/preferences-repo";
 import { hashPassword, verifyPassword } from "@/lib/password-hash";
 import { syncMarketingContact } from "@/lib/email-service";
+import { challengeFactor } from "@/lib/mfa-service";
 import { supabase } from "@/lib/supabase";
 import { performFullSync, refreshFromCloud } from "@/lib/sync-service";
 
@@ -26,10 +27,22 @@ interface StoredCredentials {
   passwordHash: string;
 }
 
+/**
+ * Pending two-factor verification captured during sign-in.
+ * Present only between `signIn` returning "mfa" and `verifyMfaCode`/`cancelMfa`.
+ */
+export interface MfaPending {
+  email: string;
+  factorId: string;
+  pwHash: string;
+}
+
 interface AuthState {
   user: LocalUser | null;
   isLoading: boolean;
   isSupabaseConfigured: boolean;
+  /** Non-null when a sign-in is blocked on a 2FA code. */
+  mfa: MfaPending | null;
 
   /**
    * Sign in with email + password.
@@ -42,12 +55,25 @@ interface AuthState {
    *
    * Real auth errors (wrong credentials) from Supabase are propagated.
    * Only connectivity failures trigger the local fallback.
+   *
+   * Returns "mfa" when the account has a verified TOTP factor and the
+   * sign-in is blocked pending `verifyMfaCode`. Returns "ok" otherwise.
    */
   signIn: (
     db: SQLite.SQLiteDatabase,
     email: string,
     password: string,
-  ) => Promise<void>;
+  ) => Promise<"ok" | "mfa">;
+
+  /**
+   * Complete a sign-in that was blocked on 2FA. Challenges the pending
+   * TOTP factor, verifies the 6-digit code, then finishes the sign-in
+   * (local user ref, offline credential cache, cloud refresh).
+   */
+  verifyMfaCode: (db: SQLite.SQLiteDatabase, code: string) => Promise<void>;
+
+  /** Abandon a pending 2FA verification (back/cancel). */
+  cancelMfa: () => void;
 
   /**
    * Sign up via Supabase Auth AND store a local password hash
@@ -120,6 +146,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: true,
   isSupabaseConfigured,
+  mfa: null,
 
   // ──────────────────────────────────────────────
   //  init — auth recovery chain
@@ -208,6 +235,25 @@ export const useAuthStore = create<AuthState>((set) => ({
           throw error;
         }
 
+        // MFA gate: accounts with a verified TOTP factor must verify a code
+        // before the sign-in completes. When gated, `session` is null and the
+        // enrolled factors are returned on the user object.
+        const verifiedTotp =
+          data.user?.factors?.filter(
+            (f) => f.status === "verified" && f.factor_type === "totp",
+          ) ?? [];
+        if (!data.session && verifiedTotp.length > 0) {
+          const pwHash = await hashPassword(trimmedEmail, password);
+          set({
+            mfa: {
+              email: trimmedEmail,
+              factorId: verifiedTotp[0].id,
+              pwHash,
+            },
+          });
+          return "mfa";
+        }
+
         if (data.user) {
           let localUser = await findUserByEmail(db, trimmedEmail);
           if (!localUser) {
@@ -232,7 +278,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           }
 
           set({ user: { id: localUser.id, email: localUser.email } });
-          return;
+          return "ok";
         }
       } catch (err) {
         // Network errors → try local fallback
@@ -273,6 +319,70 @@ export const useAuthStore = create<AuthState>((set) => ({
     refreshFromCloud(db).catch(() => {});
 
     set({ user: { id: localUser.id, email: localUser.email } });
+    return "ok";
+  },
+
+  // ──────────────────────────────────────────────
+  //  verifyMfaCode — complete a 2FA-gated sign-in
+  // ──────────────────────────────────────────────
+  verifyMfaCode: async (db, code) => {
+    const pending = useAuthStore.getState().mfa;
+    if (!pending || !supabase) {
+      throw new Error(
+        "Your 2FA session has expired. Please sign in again.",
+      );
+    }
+
+    const { challengeId } = await challengeFactor(pending.factorId);
+
+    const { data: verifyData, error: verifyError } =
+      await supabase.auth.mfa.verify({
+        factorId: pending.factorId,
+        challengeId,
+        code: code.replace(/\s/g, ""),
+      });
+    if (verifyError) {
+      throw new Error(verifyError.message);
+    }
+
+    // Swap the pre-MFA tokens for a fully authenticated session.
+    await supabase.auth.setSession({
+      access_token: verifyData.access_token,
+      refresh_token: verifyData.refresh_token,
+    });
+
+    const {
+      data: { user: supabaseUser },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError) throw new Error(userError.message);
+    if (!supabaseUser) {
+      throw new Error("Could not confirm your account after 2FA verification.");
+    }
+
+    const email = supabaseUser.email ?? pending.email;
+    let localUser = await findUserByEmail(db, email);
+    if (!localUser) {
+      localUser = await createUser(db, email, supabaseUser.id);
+    }
+
+    // Offline credential cache (hash was captured at the password step).
+    await updatePasswordHash(db, localUser.id, pending.pwHash);
+    await storeCredentialsInSecureStore(email, pending.pwHash, localUser.id);
+
+    const syncResult = await refreshFromCloud(db);
+    if (syncResult.errors.length > 0) {
+      console.warn("[Auth] Cloud refresh had errors:", syncResult.errors);
+    }
+
+    set({ user: { id: localUser.id, email: localUser.email }, mfa: null });
+  },
+
+  // ──────────────────────────────────────────────
+  //  cancelMfa — abandon a pending 2FA sign-in
+  // ──────────────────────────────────────────────
+  cancelMfa: () => {
+    set({ mfa: null });
   },
 
   // ──────────────────────────────────────────────
@@ -339,7 +449,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await supabase.auth.signOut();
     }
     await SecureStore.deleteItemAsync(SS_CREDENTIALS);
-    set({ user: null });
+    set({ user: null, mfa: null });
   },
 
   // ──────────────────────────────────────────────

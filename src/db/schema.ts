@@ -33,8 +33,54 @@ export interface Category {
   color?: string;
   icon?: string;
   isIncome: boolean;
+  isDeductible: boolean;
   isHidden: boolean;
   sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Receipt {
+  id: string; // UUID
+  userId: string;
+  transactionId?: string;
+  localPath?: string;
+  remoteUrl?: string;
+  merchant?: string;
+  amountCents?: number;
+  date?: string; // YYYY-MM-DD
+  ocrRaw?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaxPayment {
+  id: string; // UUID
+  userId: string;
+  amountCents: number;
+  taxYear: number;
+  quarter?: number; // 1-4, or undefined for annual/other payments
+  paymentDate: string; // YYYY-MM-DD
+  method?: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecurringTransaction {
+  id: string; // UUID
+  userId: string;
+  name: string;
+  isIncome: boolean;
+  amountCents: number;
+  categoryId?: string;
+  accountId?: string;
+  frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+  startDate: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  nextRunDate: string; // YYYY-MM-DD
+  timesRun: number;
+  timesPlanned?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +100,7 @@ export interface Transaction {
   // Denormalized for queries
   accountName?: string;
   categoryName?: string;
+  categoryIsDeductible?: boolean;
   clientName?: string;
 }
 
@@ -128,6 +175,7 @@ export const MIGRATIONS = [
     color TEXT,
     icon TEXT,
     is_income INTEGER NOT NULL DEFAULT 0,
+    is_deductible INTEGER NOT NULL DEFAULT 1,
     is_hidden INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -243,4 +291,57 @@ export const MIGRATIONS = [
     updated_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_integrations_settings_user_id ON integrations_settings(user_id)`,
+  // Receipts — mirrors public.receipts (cloud-first)
+  // Stores OCR data + the storage URL for a scanned receipt, linked to a transaction.
+  `CREATE TABLE IF NOT EXISTS receipts (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    transaction_id TEXT,
+    local_path TEXT,
+    remote_url TEXT,
+    merchant TEXT,
+    amount_cents INTEGER,
+    date TEXT,
+    ocr_raw TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_receipts_transaction_id ON receipts(transaction_id)`,
+  // Tax payments — mirrors public.tax_payments (cloud-first)
+  // Records actual estimated-tax payments so "projected owe" can be net of what's been paid.
+  `CREATE TABLE IF NOT EXISTS tax_payments (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    tax_year INTEGER NOT NULL,
+    quarter INTEGER,
+    payment_date TEXT NOT NULL,
+    method TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_tax_payments_user_id ON tax_payments(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_tax_payments_year ON tax_payments(tax_year)`,
+  // Recurring transactions — templates for automatic income/expense creation
+  `CREATE TABLE IF NOT EXISTS recurring_transactions (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    is_income INTEGER NOT NULL DEFAULT 1,
+    amount_cents INTEGER NOT NULL,
+    category_id TEXT,
+    account_id TEXT,
+    frequency TEXT NOT NULL DEFAULT 'monthly',
+    start_date TEXT NOT NULL,
+    end_date TEXT,
+    next_run_date TEXT NOT NULL DEFAULT (date('now')),
+    times_run INTEGER NOT NULL DEFAULT 0,
+    times_planned INTEGER,
+    created_at TEXT NOT NULL DEFAULT (date('now')),
+    updated_at TEXT NOT NULL DEFAULT (date('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_recurring_transactions_user_id ON recurring_transactions(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_recurring_transactions_next_date ON recurring_transactions(next_run_date)`,
 ];

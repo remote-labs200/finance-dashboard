@@ -132,8 +132,17 @@ export function useBiometricAuth(
     }
   }, [enabled, onAuthenticate]);
 
+  /**
+   * Lock the app again (e.g. when it returns from the background and
+   * "Require on Return" is enabled). The caller re-triggers `authenticate`.
+   */
+  const relock = useCallback(() => {
+    setState((s) => ({ ...s, isAuthenticated: false, didCancel: false }));
+  }, []);
+
   return {
     ...state,
     authenticate,
+    relock,
   };
 }

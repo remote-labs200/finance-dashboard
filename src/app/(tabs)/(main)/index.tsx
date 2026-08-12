@@ -143,10 +143,15 @@ export default function DashboardScreen() {
       const ytdExpenses = allTxns
         .filter((t) => t.amountCents < 0)
         .reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
+      const ytdDeductionsCents = allTxns
+        .filter(
+          (t) => t.amountCents < 0 && t.categoryIsDeductible !== false,
+        )
+        .reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
 
       const taxResult = estimateAnnualTax({
         ytdIncomeCents: ytdIncome,
-        ytdDeductionsCents: ytdExpenses,
+        ytdDeductionsCents,
         filingStatus: toFilingStatus(filingStatus),
         taxYear: year,
         currentQuarter: Math.ceil(month / 3) as 1 | 2 | 3 | 4,

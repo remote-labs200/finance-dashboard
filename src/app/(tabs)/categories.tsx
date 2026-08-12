@@ -43,6 +43,7 @@ export default function CategoriesScreen() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newIsIncome, setNewIsIncome] = useState(false);
+  const [newIsDeductible, setNewIsDeductible] = useState(true);
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0]);
 
   const loadCategories = useCallback(async () => {
@@ -74,14 +75,16 @@ export default function CategoriesScreen() {
       name: newName.trim(),
       color: selectedColor,
       isIncome: newIsIncome,
+      isDeductible: newIsIncome ? false : newIsDeductible,
       isHidden: false,
       sortOrder: categories.length,
     });
 
     setNewName('');
+    setNewIsDeductible(true);
     setShowAddForm(false);
     await loadCategories();
-  }, [db, user, newName, newIsIncome, selectedColor, categories.length, loadCategories]);
+  }, [db, user, newName, newIsIncome, newIsDeductible, selectedColor, categories.length, loadCategories]);
 
   const handleToggleIncome = useCallback(
     async (cat: Category) => {
@@ -94,6 +97,14 @@ export default function CategoriesScreen() {
   const handleToggleHidden = useCallback(
     async (cat: Category) => {
       await updateCategory(db, cat.id, { isHidden: !cat.isHidden });
+      await loadCategories();
+    },
+    [db, loadCategories]
+  );
+
+  const handleToggleDeductible = useCallback(
+    async (cat: Category) => {
+      await updateCategory(db, cat.id, { isDeductible: !cat.isDeductible });
       await loadCategories();
     },
     [db, loadCategories]
@@ -139,13 +150,23 @@ export default function CategoriesScreen() {
               Switch to {item.isIncome ? 'Expense' : 'Income'}
             </ThemedText>
           </Pressable>
+          {!item.isIncome && (
+            <Pressable onPress={() => handleToggleDeductible(item)} style={styles.actionBtn}>
+              <ThemedText
+                type="small"
+                style={{ color: item.isDeductible ? colors.success : colors.warning }}
+              >
+                {item.isDeductible ? 'Deductible' : 'Not Deductible'}
+              </ThemedText>
+            </Pressable>
+          )}
           <Pressable onPress={() => handleDelete(item)} style={styles.actionBtn}>
             <ThemedText type="small" style={{ color: colors.danger }}>Delete</ThemedText>
           </Pressable>
         </View>
       </NeumorphicCard>
     ),
-    [handleToggleIncome, handleDelete, colors.primary, colors.success, colors.danger]
+    [handleToggleIncome, handleToggleDeductible, handleDelete, colors.primary, colors.success, colors.danger, colors.warning]
   );
 
   return (
@@ -207,6 +228,27 @@ export default function CategoriesScreen() {
                       </ThemedText>
                     </NeumorphicPressable>
                   </View>
+
+                  {!newIsIncome && (
+                    <View style={styles.toggleRow}>
+                      <NeumorphicPressable
+                        inset
+                        onPress={() => setNewIsDeductible(true)}
+                        style={[styles.toggleBtn, newIsDeductible && { backgroundColor: colors.success }]}>
+                        <ThemedText type="small" style={{ color: newIsDeductible ? colors.primaryText : colors.success }}>
+                          Deductible
+                        </ThemedText>
+                      </NeumorphicPressable>
+                      <NeumorphicPressable
+                        inset
+                        onPress={() => setNewIsDeductible(false)}
+                        style={[styles.toggleBtn, !newIsDeductible && { backgroundColor: colors.warning }]}>
+                        <ThemedText type="small" style={{ color: !newIsDeductible ? colors.primaryText : colors.warning }}>
+                          Not Deductible
+                        </ThemedText>
+                      </NeumorphicPressable>
+                    </View>
+                  )}
 
                   <View style={styles.colorRow}>
                     {PRESET_COLORS.map((color) => (

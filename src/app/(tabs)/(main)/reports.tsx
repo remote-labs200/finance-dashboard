@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +19,7 @@ import {
   getMonthlyTotals,
   getYearToDateSummary,
 } from "@/db/transaction-repo";
+import { getTaxYearPaidCents } from "@/db/tax-payment-repo";
 import { downloadTextFile } from "@/lib/export-utils";
 import { useTheme } from "@/hooks/use-theme";
 import { formatCurrency, getMonthName } from "@/lib/format";
@@ -30,6 +31,7 @@ export default function ReportsScreen() {
   const db = useSQLiteContext();
   const user = useAuthStore((state) => state.user);
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<"reports" | "analytics">(
     "reports",
@@ -55,6 +57,8 @@ export default function ReportsScreen() {
   > | null>(null);
   const [transactionCount, setTransactionCount] = useState(0);
   const [baseCurrency, setBaseCurrency] = useState("USD");
+  const [taxPaidCents, setTaxPaidCents] = useState(0);
+  const [deductibleExpenses, setDeductibleExpenses] = useState(0);
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -63,23 +67,32 @@ export default function ReportsScreen() {
     if (!user) return;
 
     try {
-      const [summary, monthly, txns] = await Promise.all([
+      const [summary, monthly, txns, paidTax] = await Promise.all([
         getYearToDateSummary(db, user.id, currentYear),
         getMonthlyTotals(db, user.id, currentYear),
         findTransactionsByUser(db, user.id, { limit: 10000 }),
+        getTaxYearPaidCents(db, user.id, currentYear),
       ]);
 
       setYearSummary(summary);
       setMonthlyTotals(monthly);
       setTransactionCount(txns.length);
+      setTaxPaidCents(paidTax);
 
-      // Compute tax estimate
+      // Compute tax estimate. Deductions use only expenses in deductible
+      // categories (uncategorized defaults to deductible).
       const ytdIncome = txns
         .filter((t) => t.amountCents > 0)
         .reduce((sum, t) => sum + t.amountCents, 0);
       const ytdExpenses = txns
         .filter((t) => t.amountCents < 0)
         .reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
+      const ytdDeductionsCents = txns
+        .filter(
+          (t) => t.amountCents < 0 && t.categoryIsDeductible !== false,
+        )
+        .reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
+      setDeductibleExpenses(ytdDeductionsCents);
 
       const [filingStatus, baseCurrency] = await Promise.all([
         getPreference(db, user.id, "tax_filing_status"),
@@ -89,7 +102,7 @@ export default function ReportsScreen() {
 
       const taxResult = estimateAnnualTax({
         ytdIncomeCents: ytdIncome,
-        ytdDeductionsCents: ytdExpenses,
+        ytdDeductionsCents,
         filingStatus: toFilingStatus(filingStatus),
         taxYear: currentYear,
         currentQuarter: Math.ceil((now.getMonth() + 1) / 3) as 1 | 2 | 3 | 4,
@@ -145,14 +158,16 @@ export default function ReportsScreen() {
     const income = txns.filter((t) => t.amountCents > 0);
     const expenses = txns.filter((t) => t.amountCents < 0);
 
-    // Group expenses by category
-    const expenseByCategory = new Map<string, number>();
+    // Group expenses by category + deductibility
+    const expenseByCategory = new Map<string, { total: number; deductible: number }>();
     for (const t of expenses) {
       const cat = t.categoryName ?? "Uncategorized";
-      expenseByCategory.set(
-        cat,
-        (expenseByCategory.get(cat) ?? 0) + Math.abs(t.amountCents),
-      );
+      const isDeductible = t.categoryIsDeductible !== false;
+      const entry = expenseByCategory.get(cat) ?? { total: 0, deductible: 0 };
+      expenseByCategory.set(cat, {
+        total: entry.total + Math.abs(t.amountCents),
+        deductible: entry.deductible + (isDeductible ? Math.abs(t.amountCents) : 0),
+      });
     }
 
     let report = `SCHEDULE C SUMMARY - ${currentYear}\n`;
@@ -164,11 +179,13 @@ export default function ReportsScreen() {
     report += `${"-".repeat(40)}\n`;
 
     const sortedExpenses = Array.from(expenseByCategory.entries()).sort(
-      (a, b) => b[1] - a[1],
+      (a, b) => b[1].total - a[1].total,
     );
 
-    for (const [cat, amount] of sortedExpenses) {
-      report += `${cat.padEnd(30)} ${formatCurrency(amount, baseCurrency).padStart(15)}\n`;
+    for (const [cat, amounts] of sortedExpenses) {
+      report += `${cat.padEnd(30)} `;
+      report += `${formatCurrency(amounts.deductible, baseCurrency).padStart(15)} `;
+      report += `(${formatCurrency(amounts.total, baseCurrency)})\n`;
     }
 
     report += `\nTAX ESTIMATE:\n`;
@@ -311,6 +328,61 @@ export default function ReportsScreen() {
             </NeumorphicCard>
           )}
 
+          {/* P&L Breakdown */}
+          {yearSummary && (
+            <NeumorphicCard style={styles.card}>
+              <ThemedText type="callout" style={styles.sectionTitle}>
+                P&L Summary
+              </ThemedText>
+              <View style={styles.pnlRow}>
+                <View style={styles.pnlColumn}>
+                  <ThemedText type="default" style={{ fontWeight: "600" }}>
+                    Gross Income
+                  </ThemedText>
+                  <ThemedText type="headline" style={{ color: colors.success }}>
+                    {formatCurrency(yearSummary.totalIncome, baseCurrency)}
+                  </ThemedText>
+                </View>
+                <View style={styles.pnlColumn}>
+                  <ThemedText type="default" style={{ fontWeight: "600" }}>
+                    Total Expenses
+                  </ThemedText>
+                  <ThemedText type="headline" style={{ color: colors.danger }}>
+                    {formatCurrency(yearSummary.totalExpenses, baseCurrency)}
+                  </ThemedText>
+                </View>
+              </View>
+              <View style={styles.pnlRow}>
+                <View style={styles.pnlColumn}>
+                  <ThemedText type="default" style={{ fontWeight: "600" }}>
+                    Deductible
+                  </ThemedText>
+                  <ThemedText type="headline" style={{ color: colors.warning }}>
+                    {formatCurrency(deductibleExpenses, baseCurrency)}
+                  </ThemedText>
+                </View>
+                <View style={styles.pnlColumn}>
+                  <ThemedText type="default" style={{ fontWeight: "600" }}>
+                    Net Profit
+                  </ThemedText>
+                  <ThemedText
+                    type="headline"
+                    style={{
+                      color:
+                        yearSummary.net >= 0 ? colors.success : colors.danger,
+                    }}
+                  >
+                    {formatCurrency(yearSummary.net, baseCurrency)}
+                  </ThemedText>
+                </View>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                Expenses that reduce your taxable income — only categories
+                marked as deductible are counted.
+              </ThemedText>
+            </NeumorphicCard>
+          )}
+
           {/* Tax Summary */}
           {taxEstimate && (
             <NeumorphicCard style={styles.card}>
@@ -363,6 +435,44 @@ export default function ReportsScreen() {
                   {taxEstimate.effectiveRate.toFixed(1)}%
                 </ThemedText>
               </View>
+              <View
+                style={[styles.taxRowTotal, { borderTopColor: colors.divider }]}
+              >
+                <ThemedText type="callout" style={{ fontWeight: "600" }}>
+                  Paid So Far
+                </ThemedText>
+                <ThemedText type="default" style={{ color: colors.success }}>
+                  {formatCurrency(taxPaidCents, baseCurrency)}
+                </ThemedText>
+              </View>
+              <View style={styles.taxRow}>
+                <ThemedText type="default">Estimated Remaining</ThemedText>
+                <ThemedText
+                  type="default"
+                  style={{
+                    fontWeight: "600",
+                    color:
+                      taxEstimate.totalEstimatedTaxCents - taxPaidCents > 0
+                        ? colors.danger
+                        : colors.success,
+                  }}
+                >
+                  {formatCurrency(
+                    Math.max(
+                      0,
+                      taxEstimate.totalEstimatedTaxCents - taxPaidCents,
+                    ),
+                    baseCurrency,
+                  )}
+                </ThemedText>
+              </View>
+              <NeumorphicButton
+                variant="secondary"
+                onPress={() => router.push("/(tabs)/tax-payments")}
+                style={styles.exportBtn}
+              >
+                Record Tax Payments
+              </NeumorphicButton>
             </NeumorphicCard>
           )}
 
@@ -522,6 +632,14 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   summaryItem: {
+    flex: 1,
+    gap: Spacing.half,
+  },
+  pnlRow: {
+    flexDirection: "row",
+    gap: Spacing.three,
+  },
+  pnlColumn: {
     flex: 1,
     gap: Spacing.half,
   },

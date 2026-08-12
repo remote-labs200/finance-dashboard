@@ -17,6 +17,7 @@ export interface TransactionRow {
   updated_at: string;
   account_name?: string;
   category_name?: string;
+  category_is_deductible?: number;
   client_name?: string;
 }
 
@@ -35,12 +36,16 @@ function rowToTransaction(row: TransactionRow): Transaction {
     updatedAt: row.updated_at,
     accountName: row.account_name,
     categoryName: row.category_name,
+    categoryIsDeductible:
+      row.category_is_deductible === undefined
+        ? undefined
+        : row.category_is_deductible === 1,
     clientName: row.client_name,
   };
 }
 
 const TXN_WITH_NAMES = `
-  SELECT t.*, a.name as account_name, c.name as category_name, cl.name as client_name
+  SELECT t.*, a.name as account_name, c.name as category_name, c.is_deductible as category_is_deductible, cl.name as client_name
   FROM transactions t
   LEFT JOIN accounts a ON t.account_id = a.id
   LEFT JOIN categories c ON t.category_id = c.id

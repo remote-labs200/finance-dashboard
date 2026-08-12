@@ -8,7 +8,13 @@ import {
 import * as SecureStore from "expo-secure-store";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
-import { Animated, StatusBar, StyleSheet } from "react-native";
+import {
+  Animated,
+  AppState,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+} from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -18,6 +24,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { Colors } from "@/constants/theme";
 import { DatabaseProvider, useSQLiteContext } from "@/db/provider";
+import { ensureDefaultCategories } from "@/db/category-repo";
 import { useBiometricAuth } from "@/hooks/use-biometric";
 import { useResolvedThemeName } from "@/hooks/use-theme";
 import {
@@ -60,16 +67,26 @@ function RootLayoutInner() {
   const prevUser = useRef(user);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricRequireLaunch, setBiometricRequireLaunch] = useState(true);
+  const [biometricRequireReturn, setBiometricRequireReturn] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const resolvedTheme = useResolvedThemeName();
   const netInfo = useNetInfo();
+  const prevAppState = useRef(AppState.currentState);
 
   const {
     isAvailable: bioAvailable,
     isAuthenticated: bioAuthed,
     authenticate: bioAuth,
+    relock: bioRelock,
   } = useBiometricAuth(biometricEnabled);
+
+  // Seed a sensible starter category set once per user (no-op if already seeded).
+  useEffect(() => {
+    if (!user) return;
+    ensureDefaultCategories(db, user.id).catch(() => {});
+  }, [db, user]);
 
   // Sync on network change
   useEffect(() => {
@@ -111,7 +128,11 @@ function RootLayoutInner() {
     };
   }, [db, user, router]);
 
-  const unlocked = !bioAvailable || !biometricEnabled || bioAuthed || !user;
+  // Biometrics gate the app only when at least one prompt trigger is on.
+  const shouldRequireBiometric =
+    biometricEnabled && (biometricRequireLaunch || biometricRequireReturn);
+  const unlocked =
+    !bioAvailable || !shouldRequireBiometric || bioAuthed || !user;
 
   // On cold boot: init DB, load preferences, then hide native splash.
   // After that, fade out the custom splash overlay to reveal the app.
@@ -159,16 +180,44 @@ function RootLayoutInner() {
   // Check if biometric is preferred by user
   useEffect(() => {
     if (!user) return;
-    SecureStore.getItemAsync("biometric_enabled").then((val) => {
-      setBiometricEnabled(val === "true");
+    Promise.all([
+      SecureStore.getItemAsync("biometric_enabled"),
+      SecureStore.getItemAsync("biometric_require_launch"),
+      SecureStore.getItemAsync("biometric_require_return"),
+    ]).then(([enabled, launch, ret]) => {
+      setBiometricEnabled(enabled === "true");
+      if (launch !== null) setBiometricRequireLaunch(launch === "true");
+      if (ret !== null) setBiometricRequireReturn(ret === "true");
     });
   }, [user]);
 
-  // Auto-trigger biometric auth when user is signed in and biometric is enabled
+  // Prompt for biometrics on launch (when the user opted in).
   useEffect(() => {
     if (!user || !biometricEnabled || !bioAvailable || bioAuthed) return;
+    if (!biometricRequireLaunch) return;
     bioAuth();
-  }, [user, biometricEnabled, bioAvailable, bioAuthed, bioAuth]);
+  }, [
+    user,
+    biometricEnabled,
+    biometricRequireLaunch,
+    bioAvailable,
+    bioAuthed,
+    bioAuth,
+  ]);
+
+  // Re-lock and re-authenticate when the app returns to the foreground
+  // and "Require on Return" is enabled.
+  useEffect(() => {
+    if (!user || !biometricEnabled || !biometricRequireReturn) return;
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active" && prevAppState.current !== "active") {
+        bioRelock();
+        if (bioAvailable) bioAuth();
+      }
+      prevAppState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [user, biometricEnabled, biometricRequireReturn, bioAvailable, bioAuth, bioRelock]);
 
   useEffect(() => {
     if (prevUser.current === user) return;
@@ -213,6 +262,24 @@ function RootLayoutInner() {
         >
           Authenticate to unlock the app
         </ThemedText>
+        <Pressable
+          onPress={() => bioAuth()}
+          style={({ pressed }) => ({
+            marginTop: 24,
+            paddingVertical: 14,
+            paddingHorizontal: 32,
+            borderRadius: 14,
+            backgroundColor: Colors[resolvedTheme].primary,
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <ThemedText
+            type="smallBold"
+            style={{ color: Colors[resolvedTheme].primaryText }}
+          >
+            Unlock
+          </ThemedText>
+        </Pressable>
         <StatusBar
           barStyle={resolvedTheme === "dark" ? "light-content" : "dark-content"}
           backgroundColor={Colors[resolvedTheme].background}

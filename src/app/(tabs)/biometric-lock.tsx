@@ -7,9 +7,11 @@ import {
 } from "@/components/ui";
 import { BottomTabInset, MaxContentWidth, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import * as LocalAuthentication from "expo-local-authentication";
+import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -20,17 +22,104 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+// Keys must match the ones read by the root layout (src/app/_layout.tsx).
+const BIOMETRIC_ENABLED_KEY = "biometric_enabled";
+const BIOMETRIC_REQUIRE_LAUNCH_KEY = "biometric_require_launch";
+const BIOMETRIC_REQUIRE_RETURN_KEY = "biometric_require_return";
+const BIOMETRIC_TIMEOUT_KEY = "biometric_timeout_minutes";
+
+function persist(key: string, value: string) {
+  SecureStore.setItemAsync(key, value).catch(() => {
+    /* persist silently */
+  });
+}
+
 export default function BiometricLockScreen() {
   const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const [faceId, setFaceId] = useState(true);
+  const [faceId, setFaceId] = useState(false);
   const [requireOnLaunch, setRequireOnLaunch] = useState(true);
   const [requireOnReturn, setRequireOnReturn] = useState(false);
   const [timeoutMinutes, setTimeoutMinutes] = useState(5);
+  const [available, setAvailable] = useState(false);
+  const [biometryLabel, setBiometryLabel] = useState("Biometrics");
 
   const timeoutOptions = [1, 5, 15, 30, 60];
+
+  // Load persisted preferences + check hardware support on mount.
+  useEffect(() => {
+    (async () => {
+      try {
+        const hardware = await LocalAuthentication.hasHardwareAsync();
+        const enrolled = await LocalAuthentication.isEnrolledAsync();
+        setAvailable(hardware && enrolled);
+        if (hardware && enrolled) {
+          const types =
+            await LocalAuthentication.supportedAuthenticationTypesAsync();
+          const type = types.length > 0 ? types[0] : null;
+          setBiometryLabel(
+            type === LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION
+              ? "Face ID"
+              : "Biometrics",
+          );
+        }
+      } catch {
+        setAvailable(false);
+      }
+
+      const [enabled, launch, ret, timeout] = await Promise.all([
+        SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY),
+        SecureStore.getItemAsync(BIOMETRIC_REQUIRE_LAUNCH_KEY),
+        SecureStore.getItemAsync(BIOMETRIC_REQUIRE_RETURN_KEY),
+        SecureStore.getItemAsync(BIOMETRIC_TIMEOUT_KEY),
+      ]);
+      if (enabled !== null) setFaceId(enabled === "true");
+      if (launch !== null) setRequireOnLaunch(launch === "true");
+      if (ret !== null) setRequireOnReturn(ret === "true");
+      if (timeout !== null) setTimeoutMinutes(Number(timeout) || 5);
+    })();
+  }, []);
+
+  const toggleBiometrics = (value: boolean) => {
+    setFaceId(value);
+    persist(BIOMETRIC_ENABLED_KEY, value ? "true" : "false");
+  };
+
+  const toggleRequireOnLaunch = (value: boolean) => {
+    setRequireOnLaunch(value);
+    persist(BIOMETRIC_REQUIRE_LAUNCH_KEY, value ? "true" : "false");
+  };
+
+  const toggleRequireOnReturn = (value: boolean) => {
+    setRequireOnReturn(value);
+    persist(BIOMETRIC_REQUIRE_RETURN_KEY, value ? "true" : "false");
+  };
+
+  const selectTimeout = (minutes: number) => {
+    setTimeoutMinutes(minutes);
+    persist(BIOMETRIC_TIMEOUT_KEY, String(minutes));
+  };
+
+  const handleTest = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Unlock PaySmooth",
+        fallbackLabel: "Enter passcode",
+        cancelLabel: "Cancel",
+        disableDeviceFallback: false,
+      });
+      Alert.alert(
+        result.success ? "Success" : "Not Verified",
+        result.success
+          ? "Biometric authentication verified."
+          : "Authentication was not completed.",
+      );
+    } catch {
+      Alert.alert("Not Available", "Biometrics are not available on this device.");
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -86,18 +175,28 @@ export default function BiometricLockScreen() {
               style={{ fontWeight: "600", marginTop: Spacing.two }}
             >
               {faceId
-                ? "Face ID / Touch ID Enabled"
+                ? `${biometryLabel} Enabled`
                 : "Biometric Lock Disabled"}
             </ThemedText>
             <ThemedText
               type="small"
               themeColor="textSecondary"
-              style={{ textAlign: "center" }}
+              style={{ textAlign: "center", lineHeight: 18 }}
             >
               {faceId
                 ? "Your device biometrics secure access to the app."
                 : "Enable biometric authentication for quick, secure access."}
             </ThemedText>
+            {!available && (
+              <ThemedText
+                type="small"
+                themeColor="textSecondary"
+                style={{ textAlign: "center", lineHeight: 18, marginTop: Spacing.one }}
+              >
+                This device has no enrolled biometrics (Face ID, Touch ID, or
+                fingerprint).
+              </ThemedText>
+            )}
           </NeumorphicCard>
 
           {/* Settings */}
@@ -113,7 +212,7 @@ export default function BiometricLockScreen() {
               </View>
               <Switch
                 value={faceId}
-                onValueChange={setFaceId}
+                onValueChange={toggleBiometrics}
                 trackColor={{ false: theme.inputBorder, true: theme.primary }}
                 thumbColor="#fff"
               />
@@ -134,7 +233,7 @@ export default function BiometricLockScreen() {
                   </View>
                   <Switch
                     value={requireOnLaunch}
-                    onValueChange={setRequireOnLaunch}
+                    onValueChange={toggleRequireOnLaunch}
                     trackColor={{
                       false: theme.inputBorder,
                       true: theme.primary,
@@ -156,7 +255,7 @@ export default function BiometricLockScreen() {
                   </View>
                   <Switch
                     value={requireOnReturn}
-                    onValueChange={setRequireOnReturn}
+                    onValueChange={toggleRequireOnReturn}
                     trackColor={{
                       false: theme.inputBorder,
                       true: theme.primary,
@@ -188,7 +287,7 @@ export default function BiometricLockScreen() {
                     <NeumorphicPressable
                       key={t}
                       inset={isSelected}
-                      onPress={() => setTimeoutMinutes(t)}
+                      onPress={() => selectTimeout(t)}
                       style={[
                         styles.chip,
                         isSelected && { backgroundColor: theme.primary },
@@ -216,12 +315,7 @@ export default function BiometricLockScreen() {
               variant="secondary"
               style={[styles.testBtn, { borderColor: theme.primary }]}
               textStyle={{ color: theme.primary }}
-              onPress={() =>
-                Alert.alert(
-                  "Biometric Test",
-                  "Device biometrics are configured and ready.",
-                )
-              }
+              onPress={handleTest}
             >
               Test Biometrics
             </NeumorphicButton>
@@ -253,6 +347,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
     paddingBottom: Spacing.three,
+    gap: Spacing.three,
   },
   section: { gap: Spacing.one },
   sectionTitle: { fontWeight: "600" },

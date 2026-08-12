@@ -29,6 +29,32 @@ async function migrateDatabase(db: SQLiteDatabase) {
   // cloud ALTER migration handled the server side; this rebuilds the
   // local table so existing installs accept NULL FKs too.
   await rebuildLegacyTransactionsTable(db);
+  // Add columns to existing tables created before the current schema.
+  await ensureColumn(
+    db,
+    "categories",
+    "is_deductible",
+    "INTEGER NOT NULL DEFAULT 1",
+  );
+}
+
+/**
+ * Add a column to an existing table if it is missing.
+ * Table/column names are internal constants (never user input).
+ */
+async function ensureColumn(
+  db: SQLiteDatabase,
+  table: string,
+  column: string,
+  definition: string,
+): Promise<void> {
+  const row = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM pragma_table_info('${table}') WHERE name = ?`,
+    column,
+  );
+  if (!row || row.count === 0) {
+    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 async function rebuildLegacyTransactionsTable(db: SQLiteDatabase) {

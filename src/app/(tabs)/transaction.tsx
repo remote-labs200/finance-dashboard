@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +15,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import {
   NeumorphicButton,
+  NeumorphicCard,
   NeumorphicInput,
   NeumorphicPressable,
 } from "@/components/ui";
@@ -23,7 +25,8 @@ import { findCategoriesByUser } from "@/db/category-repo";
 import { findClientsByUser } from "@/db/client-repo";
 import { useSQLiteContext } from "@/db/provider";
 import { getPreference } from "@/db/preferences-repo";
-import { Account, Category, Client } from "@/db/schema";
+import { findReceiptByTransactionId } from "@/db/receipt-repo";
+import { Account, Category, Client, Receipt } from "@/db/schema";
 import {
   createTransaction,
   findTransactionById,
@@ -56,6 +59,7 @@ export default function TransactionScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -97,6 +101,8 @@ export default function TransactionScreen() {
           setCategoryId(txn.categoryId ?? null);
           setClientId(txn.clientId ?? null);
         }
+        const linked = await findReceiptByTransactionId(db, id);
+        setReceipt(linked);
       })();
     }
   }, [db, isEditing, id]);
@@ -177,6 +183,33 @@ export default function TransactionScreen() {
             <ThemedText type="title">
               {isEditing ? "Edit Transaction" : "New Transaction"}
             </ThemedText>
+
+            {/* Attached receipt */}
+            {isEditing && receipt && (
+              <NeumorphicCard style={styles.receiptCard}>
+                <ThemedText type="callout" style={{ fontWeight: "600" }}>
+                  Attached Receipt
+                </ThemedText>
+                {receipt.remoteUrl ? (
+                  <Image
+                    source={{ uri: receipt.remoteUrl }}
+                    style={styles.receiptImage}
+                    resizeMode="cover"
+                  />
+                ) : receipt.localPath ? (
+                  <Image
+                    source={{ uri: receipt.localPath }}
+                    style={styles.receiptImage}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <ThemedText type="small" themeColor="textSecondary">
+                  {receipt.merchant
+                    ? `${receipt.merchant} · ${receipt.date ?? ""}`
+                    : "Receipt attached to this transaction."}
+                </ThemedText>
+              </NeumorphicCard>
+            )}
 
             {/* Amount */}
             <View style={styles.field}>
@@ -452,6 +485,16 @@ const styles = StyleSheet.create({
   },
   field: {
     gap: Spacing.half,
+  },
+  receiptCard: {
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+    gap: Spacing.two,
+  },
+  receiptImage: {
+    width: "100%",
+    height: 160,
+    borderRadius: Spacing.two,
   },
   input: {
     borderRadius: Spacing.two,

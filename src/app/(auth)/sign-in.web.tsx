@@ -22,7 +22,11 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
   const signIn = useAuthStore((state) => state.signIn);
+  const verifyMfaCode = useAuthStore((state) => state.verifyMfaCode);
+  const cancelMfa = useAuthStore((state) => state.cancelMfa);
+  const mfa = useAuthStore((state) => state.mfa);
   const db = useSQLiteContext();
   const colors = useThemeColors();
 
@@ -35,6 +39,30 @@ export default function SignInScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVerifyMfa = async () => {
+    if (mfaCode.replace(/\s/g, "").length < 6) {
+      Alert.alert(
+        "Invalid Code",
+        "Enter the 6-digit code from your authenticator app.",
+      );
+      return;
+    }
+    setLoading(true);
+    try {
+      await verifyMfaCode(db, mfaCode);
+    } catch (error: any) {
+      Alert.alert("Verification Failed", error.message);
+    } finally {
+      setLoading(false);
+      setMfaCode("");
+    }
+  };
+
+  const handleCancelMfa = () => {
+    cancelMfa();
+    setMfaCode("");
   };
 
   return (
@@ -75,28 +103,63 @@ export default function SignInScreen() {
               </ThemedText>
             }
           />
-          <PasswordInput
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            autoCapitalize="none"
-          />
+          {!mfa && (
+            <PasswordInput
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              autoCapitalize="none"
+            />
+          )}
+
+          {mfa && (
+            <>
+              <ThemedText type="small" themeColor="textSecondary">
+                Enter the 6-digit code from your authenticator app to finish
+                signing in.
+              </ThemedText>
+              <NeumorphicInput
+                placeholder="000 000"
+                value={mfaCode}
+                onChangeText={setMfaCode}
+                keyboardType="number-pad"
+                maxLength={7}
+                autoFocus
+                underlineColorAndroid="transparent"
+              />
+            </>
+          )}
+
           <NeumorphicButton
-            onPress={handleSignIn}
+            onPress={mfa ? handleVerifyMfa : handleSignIn}
             disabled={loading}
             style={styles.button}
           >
-            {loading ? "Signing In..." : "Sign In"}
+            {loading
+              ? "Signing In..."
+              : mfa
+                ? "Verify & Sign In"
+                : "Sign In"}
           </NeumorphicButton>
 
-          <Link href="/(auth)/sign-up" asChild>
+          {mfa ? (
             <ThemedText
               type="link"
+              onPress={handleCancelMfa}
               style={[styles.linkButton, { color: colors.primary }]}
             >
-              Don&apos;t have an account? Sign Up
+              Cancel and go back
             </ThemedText>
-          </Link>
+          ) : (
+            <Link href="/(auth)/sign-up" asChild>
+              <ThemedText
+                type="link"
+                style={[styles.linkButton, { color: colors.primary }]}
+              >
+                Don&apos;t have an account? Sign Up
+              </ThemedText>
+            </Link>
+          )}
 
           <ThemedText
             type="small"

@@ -50,10 +50,6 @@ const LOCALES = [
   { value: "US_NY", label: "New York" },
   { value: "US_FL", label: "Florida" },
   { value: "US_IL", label: "Illinois" },
-  { value: "GB", label: "United Kingdom" },
-  { value: "CA", label: "Canada" },
-  { value: "AU", label: "Australia" },
-  { value: "DE", label: "Germany" },
 ] as const;
 
 interface TaxProfileFields {
@@ -271,8 +267,8 @@ export default function TaxProfileScreen() {
                 themeColor="textTertiary"
                 style={{ marginTop: Spacing.half }}
               >
-                Your tax jurisdiction determines the tax brackets, deduction
-                rules, and quarterly due dates used for estimation.
+                Tax estimation currently supports the United States (federal +
+                state). Other jurisdictions are coming soon.
               </ThemedText>
             </NeumorphicCard>
 

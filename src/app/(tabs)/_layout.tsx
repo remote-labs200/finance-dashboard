@@ -20,8 +20,9 @@ export default function TabsLayout() {
       <Stack.Screen name="base-currency" />
       <Stack.Screen name="secondary-currencies" />
       <Stack.Screen name="exchange-rates" />
-      <Stack.Screen name="safe-monthly-pay" />
-      <Stack.Screen name="tax-calibration" />
+<Stack.Screen name="safe-monthly-pay" />
+      <Stack.Screen name="tax-payments" />
+      <Stack.Screen name="recurring-transactions" />
       <Stack.Screen name="bank-connections" />
       <Stack.Screen name="invoicing-integrations" />
       <Stack.Screen name="export-ledger" />
@@ -31,9 +32,6 @@ export default function TabsLayout() {
       <Stack.Screen name="cash-flow-forecasting" />
       <Stack.Screen name="biometric-lock" />
       <Stack.Screen name="two-factor-auth" />
-      <Stack.Screen name="data-encryption-key" />
-      <Stack.Screen name="security-logs" />
-      <Stack.Screen name="connected-devices" />
       <Stack.Screen name="help-faqs" />
       <Stack.Screen name="terms-privacy" />
       <Stack.Screen name="app-version" />
